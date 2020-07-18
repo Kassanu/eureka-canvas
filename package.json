@@ -1,11 +1,11 @@
 {
-  "name": "@kassanu/eureka-canvas",
-  "version": "0.1.0",
-  "private": true,
+  "name": "eureka-canvas",
+  "version": "0.1.1",
+  "private": false,
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "build-bundle": "vue-cli-service build --target lib --name eureka-canvas ./build/bundle.js",
+    "build-lib": "vue-cli-service build --target lib --name eureka-canvas ./build/plugin.js",
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
@@ -48,5 +48,16 @@
   "files": [
     "dist",
     "src"
-  ]
+  ],
+  "description": "A component for showing points of interest on an image.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kassanu/eureka-canvas.git"
+  },
+  "author": "Matt Martucciello",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Kassanu/eureka-canvas/issues"
+  },
+  "homepage": "https://github.com/Kassanu/eureka-canvas#readme"
 }
