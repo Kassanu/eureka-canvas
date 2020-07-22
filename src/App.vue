@@ -1,6 +1,6 @@
 <template>
     <div id="app">
-        <EurekaCanvas :canvasImageSource="image" />
+        <EurekaCanvas :canvasImageSource="image" :gridSizeInPixels="50" :coordinatesOffset="1" />
     </div>
 </template>
 
