@@ -20,6 +20,10 @@
             coordinatesOffset: {
                 type: Number,
                 default: 0
+            },
+            positions: {
+                type: Array,
+                required: true
             }
         },
         data() {
@@ -100,6 +104,42 @@
                 this.canvasContext.restore()
 
                 this.canvasContext.drawImage(this.canvasImage, this.canvasImagePos.x, this.canvasImagePos.y, this.scaledImageWidth, this.scaledImageHeight)
+
+                this.drawPositions()
+            },
+            drawPositions() {
+                this.positions.forEach(async (position) => {
+                    // convert coords into scaledImagePosition
+                    // draw icon centered at position
+                    // draw text to right of icon
+                    let drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
+                    let lastIconWidth = 0
+                    let totalIconWidth = 0
+                    position.icons.forEach(icon => {
+                        if (icon.image !== null) {
+                            const iconPosition = {
+                                x: ((drawPosition.x + this.canvasImagePos.x) - (icon.image.naturalWidth / 2)) + lastIconWidth,
+                                y: (drawPosition.y + this.canvasImagePos.y) - (icon.image.naturalHeight / 2)
+                            }
+                            lastIconWidth = icon.image.naturalWidth
+                            totalIconWidth += lastIconWidth
+                            this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y)
+                        }
+                    })
+
+                    const textPosition = {
+                        x: (drawPosition.x + this.canvasImagePos.x) + totalIconWidth - (lastIconWidth / 2),
+                        y: (drawPosition.y + this.canvasImagePos.y)
+                    }
+
+                    this.canvasContext.textBaseline = 'middle'
+                    this.canvasContext.font = '24pt sans-serif'
+                    this.canvasContext.strokeStyle = 'black';
+                    this.canvasContext.lineWidth = 4;
+                    this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y);
+                    this.canvasContext.fillStyle = 'white';
+                    this.canvasContext.fillText(position.label, textPosition.x, textPosition.y);
+                })
             },
             scaleToFit() {
                 let canvasRatio = this.canvasElementWidth / this.canvasElementHeight
@@ -231,6 +271,12 @@
             },
             fullPointToCoordinates(fullPoint) {
                 return {x: (Math.round((fullPoint.x / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset, y: (Math.round((fullPoint.y / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset}
+            },
+            coordinatesToFullPoint(coordinates) {
+                return {
+                    x: (coordinates.x - this.coordinatesOffset) * this.gridSizeInPixels,
+                    y: (coordinates.y - this.coordinatesOffset) * this.gridSizeInPixels
+                }
             },
             zoomImage(delta, point) {
                 const oldZoom = this.zoomLevel
