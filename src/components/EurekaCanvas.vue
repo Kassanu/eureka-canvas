@@ -1,6 +1,7 @@
 <template>
     <div id="eurekaCanvasContainer">
         <canvas draggable="true" id="eurekaCanvas"></canvas>
+        <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">{{ mouseCoordinates.x }}, {{ mouseCoordinates.y }}</div>
     </div>
 </template>
 
@@ -11,6 +12,14 @@
             canvasImageSource: {
                 type: String,
                 required: true
+            },
+            gridSizeInPixels: {
+                type: Number,
+                default: 100
+            },
+            coordinatesOffset: {
+                type: Number,
+                default: 0
             }
         },
         data() {
@@ -33,6 +42,11 @@
                 zoomClamp: {
                     min: 10,
                     max: 100
+                },
+                showCoordinates: false,
+                canvasMousePosition: {
+                    x: 0,
+                    y: 0
                 }
             }
         },
@@ -57,6 +71,24 @@
                 this.setUpListeners()
                 this.draw()
             })();
+        },
+        computed: {
+            scaleMultiplier () {
+                if (this.zoomLevel === 100) {
+                    return 1
+                }
+
+                return (this.zoomLevel / 100)
+            },
+            scaledImageMousePosition () {
+                return this.relativePointOnImage(this.canvasMousePosition)
+            },
+            fullImageMousePosition () {
+                return this.scaledPointToFullPoint(this.scaledImageMousePosition)
+            },
+            mouseCoordinates () {
+                return this.fullPointToCoordinates(this.fullImageMousePosition)
+            }
         },
         methods: {
             draw() {
@@ -89,6 +121,8 @@
                 this.canvasElement.addEventListener('drag', this.dragEvent, false)
                 this.canvasElement.addEventListener('dragstart', this.dragStartEvent, false)
                 this.canvasElement.addEventListener('dragend', this.dragEndEvent, false)
+                this.canvasElement.addEventListener('mousemove', this.mouseMoveEvent, false)
+                this.canvasElement.addEventListener('mouseleave', this.mouseLeaveEvent, false)
                 document.addEventListener('dragover', (e) => e.preventDefault(), true)
             },
             clickEvent(evt) {
@@ -154,7 +188,6 @@
                 this.draw()
             },
             dragStartEvent(evt) {
-                // console.log(evt.dataTransfer)
                 var img = new Image();
                 img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
                 evt.dataTransfer.setDragImage(img, 0, 0);
@@ -165,6 +198,18 @@
             },
             dragEndEvent(evt) {
                 document.documentElement.style.cursor = 'auto'
+            },
+            mouseMoveEvent(evt) {
+                this.canvasMousePosition = { x: evt.offsetX, y: evt.offsetY }
+                this.toggleCoordinates(this.pointIsOnImage(this.canvasMousePosition))
+            },
+            mouseLeaveEvent() {
+                this.toggleCoordinates(false)
+            },
+            toggleCoordinates(show) {
+                if (this.showCoordinates != show) {
+                    this.showCoordinates = show
+                }
             },
             pointIsOnImage(point) {
                 let rect = {
@@ -177,6 +222,15 @@
             },
             relativePointOnImage(point) {
                 return { x: point.x - this.canvasImagePos.x, y: point.y - this.canvasImagePos.y }
+            },
+            scaledPointToFullPoint(scaledPoint) {
+                return {x: scaledPoint.x / this.scaleMultiplier, y: scaledPoint.y / this.scaleMultiplier}
+            },
+            fullPointToScaledPoint(fullPoint) {
+                return {x: fullPoint.x * this.scaleMultiplier, y: fullPoint.y * this.scaleMultiplier}
+            },
+            fullPointToCoordinates(fullPoint) {
+                return {x: (Math.round((fullPoint.x / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset, y: (Math.round((fullPoint.y / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset}
             },
             zoomImage(delta, point) {
                 const oldZoom = this.zoomLevel
@@ -227,5 +281,15 @@
     #eurekaCanvas {
         width: 100%;
         height: 100%;
+    }
+
+    #eurekaCanvasMouseCoordinates {
+        position: absolute;
+        top: 1%;
+        right: 1%;
+        background-color: rgba(50, 50, 50, 1);
+        border: 1px solid rgba(25, 25, 25, 0.8);
+        color: #eee;
+        padding: 5px;
     }
 </style>
