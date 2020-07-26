@@ -166,8 +166,11 @@
                 document.addEventListener('dragover', (e) => e.preventDefault(), true)
             },
             clickEvent(evt) {
-                const point = { x: evt.offsetX, y: evt.offsetY }
-                console.log(this.relativePointOnImage(point))
+                const point = this.fullPointToCoordinates(this.scaledPointToFullPoint(this.relativePointOnImage({ x: evt.offsetX, y: evt.offsetY })))
+                console.log(point)
+                this.$emit('click', {
+                    coordinates: point
+                })
             },
             wheelEvent(evt) {
                 const point = { x: evt.offsetX, y: evt.offsetY }
