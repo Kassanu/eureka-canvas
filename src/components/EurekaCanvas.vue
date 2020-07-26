@@ -109,33 +109,35 @@
             },
             drawPositions() {
                 this.positions.forEach((position) => {
-                    let drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
-                    let lastIconWidth = 0
-                    let totalIconWidth = 0
-                    position.icons.forEach(icon => {
-                        if (icon.image !== null) {
-                            const iconPosition = {
-                                x: ((drawPosition.x + this.canvasImagePos.x) - (icon.image.naturalWidth / 2)) + totalIconWidth,
-                                y: (drawPosition.y + this.canvasImagePos.y) - (icon.image.naturalHeight / 2)
+                    if (this.isCoordinateInView(position.coordinates)) {
+                        let drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
+                        let lastIconWidth = 0
+                        let totalIconWidth = 0
+                        position.icons.forEach(icon => {
+                            if (icon.image !== null) {
+                                const iconPosition = {
+                                    x: ((drawPosition.x + this.canvasImagePos.x) - (icon.image.naturalWidth / 2)) + totalIconWidth,
+                                    y: (drawPosition.y + this.canvasImagePos.y) - (icon.image.naturalHeight / 2)
+                                }
+                                lastIconWidth = icon.image.naturalWidth
+                                totalIconWidth += lastIconWidth
+                                this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y)
                             }
-                            lastIconWidth = icon.image.naturalWidth
-                            totalIconWidth += lastIconWidth
-                            this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y)
+                        })
+
+                        const textPosition = {
+                            x: (drawPosition.x + this.canvasImagePos.x) + totalIconWidth - (lastIconWidth / 2),
+                            y: (drawPosition.y + this.canvasImagePos.y)
                         }
-                    })
 
-                    const textPosition = {
-                        x: (drawPosition.x + this.canvasImagePos.x) + totalIconWidth - (lastIconWidth / 2),
-                        y: (drawPosition.y + this.canvasImagePos.y)
+                        this.canvasContext.textBaseline = 'middle'
+                        this.canvasContext.font = '24pt sans-serif'
+                        this.canvasContext.strokeStyle = 'black'
+                        this.canvasContext.lineWidth = 4
+                        this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
+                        this.canvasContext.fillStyle = 'white'
+                        this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
                     }
-
-                    this.canvasContext.textBaseline = 'middle'
-                    this.canvasContext.font = '24pt sans-serif'
-                    this.canvasContext.strokeStyle = 'black';
-                    this.canvasContext.lineWidth = 4;
-                    this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y);
-                    this.canvasContext.fillStyle = 'white';
-                    this.canvasContext.fillText(position.label, textPosition.x, textPosition.y);
                 })
             },
             scaleToFit() {
@@ -277,6 +279,18 @@
                     x: (coordinates.x - this.coordinatesOffset) * this.gridSizeInPixels,
                     y: (coordinates.y - this.coordinatesOffset) * this.gridSizeInPixels
                 }
+            },
+            isCoordinateInView(coordinates) {
+                const position = this.fullPointToScaledPoint(this.coordinatesToFullPoint(coordinates))
+                const shiftedPosition = {
+                    x: position.x + this.canvasImagePos.x,
+                    y: position.y + this.canvasImagePos.y
+                }
+                if (shiftedPosition.y < 0 || shiftedPosition.y > this.canvasElementHeight || shiftedPosition.x < 0 || shiftedPosition.x > this.canvasElementWidth) {
+                    return false
+                }
+
+                return true
             },
             zoomImage(delta, point) {
                 const oldZoom = this.zoomLevel
