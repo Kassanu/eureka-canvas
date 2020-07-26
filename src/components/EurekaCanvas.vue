@@ -24,6 +24,14 @@
             positions: {
                 type: Array,
                 required: true
+            },
+            minimumZoom: {
+                type: Number,
+                default: 10
+            },
+            maximumZoom: {
+                type: Number,
+                default: 100
             }
         },
         data() {
@@ -43,10 +51,6 @@
                 lastDragPosition: { x: 0, y: 0 },
                 scaledImageWidth: 0,
                 scaledImageHeight: 0,
-                zoomClamp: {
-                    min: 10,
-                    max: 100
-                },
                 showCoordinates: false,
                 canvasMousePosition: {
                     x: 0,
@@ -92,6 +96,9 @@
             },
             mouseCoordinates () {
                 return this.fullPointToCoordinates(this.fullImageMousePosition)
+            },
+            clampedZoomLevel () {
+                return (((this.zoomLevel - this.minimumZoom) * (100 - 50)) / (this.maximumZoom - this.minimumZoom)) + 50
             }
         },
         methods: {
@@ -115,13 +122,17 @@
                         let totalIconWidth = 0
                         position.icons.forEach(icon => {
                             if (icon.image !== null) {
-                                const iconPosition = {
-                                    x: ((drawPosition.x + this.canvasImagePos.x) - (icon.image.naturalWidth / 2)) + totalIconWidth,
-                                    y: (drawPosition.y + this.canvasImagePos.y) - (icon.image.naturalHeight / 2)
+                                const scaledImageDimensions = {
+                                    width:  icon.image.naturalWidth * (this.clampedZoomLevel / 100),
+                                    height: icon.image.naturalHeight * (this.clampedZoomLevel / 100)
                                 }
-                                lastIconWidth = icon.image.naturalWidth
+                                const iconPosition = {
+                                    x: ((drawPosition.x + this.canvasImagePos.x) - (scaledImageDimensions.width / 2)) + totalIconWidth,
+                                    y: (drawPosition.y + this.canvasImagePos.y) - (scaledImageDimensions.height / 2)
+                                }
+                                lastIconWidth = scaledImageDimensions.width
                                 totalIconWidth += lastIconWidth
-                                this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y)
+                                this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
                             }
                         })
 
@@ -131,7 +142,7 @@
                         }
 
                         this.canvasContext.textBaseline = 'middle'
-                        this.canvasContext.font = '24pt sans-serif'
+                        this.canvasContext.font = `${18 * (this.clampedZoomLevel / 100)}pt sans-serif`
                         this.canvasContext.strokeStyle = 'black'
                         this.canvasContext.lineWidth = 4
                         this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
@@ -296,16 +307,16 @@
                 const oldZoom = this.zoomLevel
                 if (delta > 0) {
                     // mousewheel down, zoom out
-                    if (this.zoomClamp.min > (this.zoomLevel | 0) - 1) {
+                    if (this.minimumZoom > (this.zoomLevel | 0) - 1) {
                         // clamp
-                        this.zoomLevel = this.zoomClamp.min
+                        this.zoomLevel = this.minimumZoom
                     } else {
                         this.zoomLevel = (this.zoomLevel | 0) - 1
                     }
                 } else {
                     // mousewheel up, zoom in
-                    if (this.zoomClamp.max < (this.zoomLevel | 0) + 1) {
-                        this.zoomLevel = this.zoomClamp.max
+                    if (this.maximumZoom < (this.zoomLevel | 0) + 1) {
+                        this.zoomLevel = this.maximumZoom
                     } else {
                         this.zoomLevel = (this.zoomLevel | 0) + 1
                     }
