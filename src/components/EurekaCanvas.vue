@@ -108,17 +108,14 @@
                 this.drawPositions()
             },
             drawPositions() {
-                this.positions.forEach(async (position) => {
-                    // convert coords into scaledImagePosition
-                    // draw icon centered at position
-                    // draw text to right of icon
+                this.positions.forEach((position) => {
                     let drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
                     let lastIconWidth = 0
                     let totalIconWidth = 0
                     position.icons.forEach(icon => {
                         if (icon.image !== null) {
                             const iconPosition = {
-                                x: ((drawPosition.x + this.canvasImagePos.x) - (icon.image.naturalWidth / 2)) + lastIconWidth,
+                                x: ((drawPosition.x + this.canvasImagePos.x) - (icon.image.naturalWidth / 2)) + totalIconWidth,
                                 y: (drawPosition.y + this.canvasImagePos.y) - (icon.image.naturalHeight / 2)
                             }
                             lastIconWidth = icon.image.naturalWidth
@@ -239,7 +236,7 @@
                 document.documentElement.style.cursor = 'move'
                 this.lastDragPosition = { x: evt.offsetX, y: evt.offsetY }
             },
-            dragEndEvent(evt) {
+            dragEndEvent() {
                 document.documentElement.style.cursor = 'auto'
             },
             mouseMoveEvent(evt) {
