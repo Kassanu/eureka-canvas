@@ -52,6 +52,7 @@
                 scaledImageWidth: 0,
                 scaledImageHeight: 0,
                 showCoordinates: false,
+                lastDragTime: 0,
                 canvasMousePosition: {
                     x: 0,
                     y: 0
@@ -191,7 +192,8 @@
             dragEvent(evt) {
                 const moved = { x: evt.offsetX - this.lastDragPosition.x, y: evt.offsetY - this.lastDragPosition.y }
                 this.lastDragPosition = { x: evt.offsetX, y: evt.offsetY }
-
+                const now = Date.now();
+                const lastDragDelta = now - this.lastDragTime;
                 this.canvasImagePos.x += moved.x
                 this.canvasImagePos.y += moved.y
 
@@ -238,7 +240,9 @@
                         this.canvasImagePos.y = this.canvasElementHeight - this.scaledImageHeight
                     }
                 }
-                if (moved.x != 0 || moved.y != 0) {
+
+                if (lastDragDelta >= 16 && (moved.x != 0 || moved.y != 0)) {
+                    this.lastDragTime = now
                     this.draw()
                 }
             },
