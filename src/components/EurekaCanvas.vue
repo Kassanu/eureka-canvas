@@ -36,6 +36,7 @@
         },
         data() {
             return {
+                ignoreFirstWatcher: true,
                 canvasElement: null,
                 canvasElementWidth: 0,
                 canvasElementHeight: 0,
@@ -80,6 +81,18 @@
                 this.setUpListeners()
                 this.draw()
             })();
+        },
+        watch: {
+            positions: {
+                deep: true,
+                handler() {
+                    if (this.ignoreFirstWatcher) {
+                        this.ignoreFirstWatcher = false
+                    } else {
+                        this.draw()
+                    }
+                }
+            }
         },
         computed: {
             scaleMultiplier () {
