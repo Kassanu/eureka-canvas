@@ -238,7 +238,9 @@
                         this.canvasImagePos.y = this.canvasElementHeight - this.scaledImageHeight
                     }
                 }
-                this.draw()
+                if (moved.x != 0 || moved.y != 0) {
+                    this.draw()
+                }
             },
             dragStartEvent(evt) {
                 var img = new Image();
