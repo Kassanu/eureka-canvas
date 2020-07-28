@@ -1,6 +1,6 @@
 <template>
     <div id="app">
-        <EurekaCanvas :canvasImageSource="image" :gridSizeInPixels="50" :coordinatesOffset="1" :positions="positions" />
+        <EurekaCanvas :canvasImageSource="image" :gridSizeInPixels="50" :coordinatesOffset="1" :positions="positions" :positionsIdKey="'id'" />
     </div>
 </template>
 
@@ -18,40 +18,40 @@
                 positions: []
             }
         },
-        mounted() {
-            this.setUpPositions()
+        async mounted() {
+            this.positions = await this.loadPositions();
         },
         methods: {
-            setUpPositions() {
-                let positions = this.loadPositions()
-                positions.forEach(position => {
-                    position.icons.forEach(async (icon) => {
-                        icon.image =  await this.loadImage(icon.path)
-                    })
-                })
-
-                this.positions = positions
-            },
-            loadPositions() {
-                return [
-                    {
-                        label: 'Test',
-                        icons: [
-                            {
-                                path: require('./assets/testIconRed.png'),
-                                image: null
-                            },
-                            {
-                                path: require('./assets/testIconBlue.png'),
-                                image: null
-                            }
-                        ],
-                        coordinates: {
-                            x: 41,
-                            y: 41
-                        }
+            async loadPositions() {
+                let positions = []
+                let icon = {
+                    path: require('./assets/testIconRed.png'),
+                    image: null
+                }
+                icon.image = await this.loadImage(icon.path)
+                const baseObj = {
+                    id: 0,
+                    label: '',
+                    icons: [
+                        icon
+                    ],
+                    coordinates: {
+                        x: 1,
+                        y: 1
                     }
-                ]
+                }
+                for (let index = 0; index < 5; index++) {
+                    positions.push(Object.assign(Object.assign({}, baseObj), {
+                        id: index,
+                        label: `Test-${index+1}`,
+                        coordinates: {
+                            x: Math.floor(Math.random() * (41 - 1 + 1)) + 1,
+                            y: Math.floor(Math.random() * (41 - 1 + 1)) + 1
+                        }
+                    }))
+
+                }
+                return positions
             },
             loadImage: url => new Promise(resolve => {
                 let img = new Image()
