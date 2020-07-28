@@ -32,6 +32,10 @@
             maximumZoom: {
                 type: Number,
                 default: 100
+            },
+            positionsIdKey: {
+                type: String,
+                default: '_index'
             }
         },
         data() {
@@ -57,6 +61,44 @@
                 canvasMousePosition: {
                     x: 0,
                     y: 0
+                },
+                positionBoundingBoxes: {
+                    'northwest': {
+                        box: {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0
+                        },
+                        children: []
+                    },
+                    'northeast': {
+                        box: {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0
+                        },
+                        children: []
+                    },
+                    'southeast': {
+                        box: {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0
+                        },
+                        children: []
+                    },
+                    'southwest': {
+                        box: {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0
+                        },
+                        children: []
+                    }
                 }
             }
         },
@@ -79,6 +121,7 @@
 
                 // this.trackTransforms()
                 this.setUpListeners()
+                this.resetUpBoundingBoxQuadrants()
                 this.draw()
             })();
         },
@@ -129,11 +172,16 @@
                 this.drawPositions()
             },
             drawPositions() {
-                this.positions.forEach((position) => {
+                this.positions.forEach((position, index) => {
                     if (this.isCoordinateInView(position.coordinates)) {
-                        let drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
+                        const drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
+                        const offsetDrawPosition = {
+                            x: drawPosition.x + this.canvasImagePos.x,
+                            y: drawPosition.y + this.canvasImagePos.y,
+                        }
                         let lastIconWidth = 0
                         let totalIconWidth = 0
+                        let iconHeight = 0
                         position.icons.forEach(icon => {
                             if (icon.image !== null) {
                                 const scaledImageDimensions = {
@@ -141,27 +189,44 @@
                                     height: icon.image.naturalHeight * (this.clampedZoomLevel / 100)
                                 }
                                 const iconPosition = {
-                                    x: ((drawPosition.x + this.canvasImagePos.x) - (scaledImageDimensions.width / 2)) + totalIconWidth,
-                                    y: (drawPosition.y + this.canvasImagePos.y) - (scaledImageDimensions.height / 2)
+                                    x: (offsetDrawPosition.x - (scaledImageDimensions.width / 2)) + totalIconWidth,
+                                    y: offsetDrawPosition.y - (scaledImageDimensions.height / 2)
                                 }
                                 lastIconWidth = scaledImageDimensions.width
                                 totalIconWidth += lastIconWidth
                                 this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
+                                if (scaledImageDimensions.height > iconHeight) {
+                                    iconHeight = scaledImageDimensions.height
+                                }
                             }
                         })
 
                         const textPosition = {
-                            x: (drawPosition.x + this.canvasImagePos.x) + totalIconWidth - (lastIconWidth / 2),
-                            y: (drawPosition.y + this.canvasImagePos.y)
+                            x: offsetDrawPosition.x + totalIconWidth - (lastIconWidth / 2),
+                            y: offsetDrawPosition.y
                         }
 
                         this.canvasContext.textBaseline = 'middle'
                         this.canvasContext.font = `${18 * (this.clampedZoomLevel / 100)}pt sans-serif`
-                        this.canvasContext.strokeStyle = 'black'
+                        this.canvasContext.strokeStyle = 'rgba(0, 0, 0, 1)'
                         this.canvasContext.lineWidth = 4
                         this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
-                        this.canvasContext.fillStyle = 'white'
+                        this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
                         this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
+
+                        
+                        const boundingBox = {
+                            id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
+                            idKey: this.positionsIdKey,
+                            x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100)/ 2),
+                            y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100)/ 2),
+                            width: totalIconWidth + this.canvasContext.measureText(position.label).width,
+                            height: iconHeight,
+                        }
+                        const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
+                        quadrants.forEach(quadrant => {
+                            this.positionBoundingBoxes[quadrant].children.push(boundingBox)
+                        })
                     }
                 })
             },
@@ -179,6 +244,31 @@
                 }
                 this.zoomLevel = (this.scaledImageWidth / this.canvasImageWidth) * 100
             },
+            resetUpBoundingBoxQuadrants() {
+                for (const [key, quadrant] of Object.entries(this.positionBoundingBoxes)) {
+                    quadrant.children.length = 0
+                    quadrant.box.width = this.scaledImageWidth / 2
+                    quadrant.box.height = this.scaledImageHeight / 2
+                    switch (key) {
+                        case 'northwest':
+                            quadrant.box.x = 0
+                            quadrant.box.y = 0
+                            break;
+                        case 'northeast':
+                            quadrant.box.x = quadrant.box.width
+                            quadrant.box.y = 0
+                            break;
+                        case 'southeast':
+                            quadrant.box.x = quadrant.box.width
+                            quadrant.box.y = quadrant.box.height
+                            break;
+                        case 'southwest':
+                            quadrant.box.x = 0
+                            quadrant.box.y = quadrant.box.height
+                            break;
+                    }                    
+                }
+            },
             setUpListeners() {
                 this.canvasElement.addEventListener('click', this.clickEvent, false)
                 this.canvasElement.addEventListener('wheel', this.wheelEvent, false)
@@ -190,10 +280,11 @@
                 document.addEventListener('dragover', (e) => e.preventDefault(), true)
             },
             clickEvent(evt) {
-                const point = this.fullPointToCoordinates(this.scaledPointToFullPoint(this.relativePointOnImage({ x: evt.offsetX, y: evt.offsetY })))
+                const point = { x: evt.offsetX, y: evt.offsetY }
                 this.$emit('click', {
-                    coordinates: point
+                    coordinates: this.fullPointToCoordinates(this.scaledPointToFullPoint(this.relativePointOnImage(point)))
                 })
+                this.checkIntersections(point)
             },
             wheelEvent(evt) {
                 const point = { x: evt.offsetX, y: evt.offsetY }
@@ -255,6 +346,7 @@
 
                 if (lastDragDelta >= 16 && (moved.x != 0 || moved.y != 0)) {
                     this.lastDragTime = now
+                    this.resetUpBoundingBoxQuadrants()
                     this.draw()
                 }
             },
@@ -276,6 +368,40 @@
             },
             mouseLeaveEvent() {
                 this.toggleCoordinates(false)
+            },
+            checkIntersections(point) {
+                if (this.pointIsOnImage(point)) {
+                    const relPoint = this.relativePointOnImage(point)
+
+                    this.getRelativePointQuadrant(relPoint)
+
+                    const hit = this.positionBoundingBoxes[this.getRelativePointQuadrant(relPoint)].children.slice().reverse().find((box, index) => {
+                        return relPoint.x >= box.x && relPoint.x <= (box.x + box.width) && relPoint.y >= box.y && relPoint.y <= (box.y + box.height)
+                    })
+
+                    if (hit !== undefined) {
+                        if (hit.idKey == '_index') {
+                            console.log(this.positions[hit.id])
+                            this.$emit('clickedElement', this.positions[hit.id])
+                        } else {
+                            this.$emit('clickedElement', this.positions.find(position => {
+                                return position[hit.idKey] === hit.id
+                            }))
+                        }
+                    }
+                }
+            },
+            getRelativePointQuadrant(point) {
+                return Object.keys(this.positionBoundingBoxes).find((key) => {
+                    const box = this.positionBoundingBoxes[key].box
+                    return point.x >= box.x && point.x <= (box.x + box.width) && point.y >= box.y && point.y <= (box.y + box.height)
+                })
+            },
+            getQuadrantsForBoundingBox(box) {
+                return Object.keys(this.positionBoundingBoxes).filter((key) => {
+                    const quadBox = this.positionBoundingBoxes[key].box
+                    return box.x < (quadBox.x + quadBox.width) && (box.x + box.width) > quadBox.x && box.y < (quadBox.y + quadBox.height) && (box.y + box.height) > quadBox.y
+                })
             },
             toggleCoordinates(show) {
                 if (this.showCoordinates != show) {
@@ -351,7 +477,7 @@
 
                     this.scaledImageWidth = newScaledImageWidth
                     this.scaledImageHeight = newScaledImageHeight
-
+                    this.resetUpBoundingBoxQuadrants()
                     this.draw()
                 }
             },
