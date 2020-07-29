@@ -110,10 +110,7 @@
                 this.scaledImageWidth = this.canvasImageWidth
                 this.scaledImageHeight = this.canvasImageHeight
                 this.canvasElement = document.getElementById('eurekaCanvas')
-                this.canvasElementWidth = this.canvasElement.getBoundingClientRect().width
-                this.canvasElementHeight = this.canvasElement.getBoundingClientRect().height
-                this.canvasElement.width = this.canvasElement.offsetWidth
-                this.canvasElement.height = this.canvasElement.offsetHeight
+                this.resizeCanvas()
                 this.canvasContext = this.canvasElement.getContext('2d')
                 this.scaleToFit()
                 this.canvasImagePos.x = (this.canvasElement.width / 2) - (this.scaledImageWidth / 2)
@@ -270,6 +267,10 @@
                 }
             },
             setUpListeners() {
+                window.addEventListener('resize', () => {
+                    this.resizeCanvas()
+                    this.draw()
+                }, false);
                 this.canvasElement.addEventListener('click', this.clickEvent, false)
                 this.canvasElement.addEventListener('wheel', this.wheelEvent, false)
                 this.canvasElement.addEventListener('drag', this.dragEvent, false)
@@ -278,6 +279,12 @@
                 this.canvasElement.addEventListener('mousemove', this.mouseMoveEvent, false)
                 this.canvasElement.addEventListener('mouseleave', this.mouseLeaveEvent, false)
                 document.addEventListener('dragover', (e) => e.preventDefault(), true)
+            },
+            resizeCanvas() {
+                this.canvasElementWidth = this.canvasElement.getBoundingClientRect().width
+                this.canvasElementHeight = this.canvasElement.getBoundingClientRect().height
+                this.canvasElement.width = this.canvasElement.offsetWidth
+                this.canvasElement.height = this.canvasElement.offsetHeight
             },
             clickEvent(evt) {
                 const point = { x: evt.offsetX, y: evt.offsetY }
