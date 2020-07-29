@@ -375,13 +375,12 @@
 
                     this.getRelativePointQuadrant(relPoint)
 
-                    const hit = this.positionBoundingBoxes[this.getRelativePointQuadrant(relPoint)].children.slice().reverse().find((box, index) => {
+                    const hit = this.positionBoundingBoxes[this.getRelativePointQuadrant(relPoint)].children.slice().reverse().find(box => {
                         return relPoint.x >= box.x && relPoint.x <= (box.x + box.width) && relPoint.y >= box.y && relPoint.y <= (box.y + box.height)
                     })
 
                     if (hit !== undefined) {
                         if (hit.idKey == '_index') {
-                            console.log(this.positions[hit.id])
                             this.$emit('clickedElement', this.positions[hit.id])
                         } else {
                             this.$emit('clickedElement', this.positions.find(position => {

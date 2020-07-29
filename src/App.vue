@@ -14,7 +14,7 @@
         },
         data() {
             return {
-                image: require('./assets/test.jpg'),
+                image: require('./assets/pyros.jpg'),
                 positions: []
             }
         },
