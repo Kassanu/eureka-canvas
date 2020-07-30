@@ -1,6 +1,6 @@
 <template>
     <div id="app">
-        <EurekaCanvas :canvasImageSource="image" :gridSizeInPixels="50" :coordinatesOffset="1" :positions="positions" :positionsIdKey="'id'" />
+        <EurekaCanvas v-if="!loading" :canvasImage="image" :gridSizeInPixels="50" :coordinatesOffset="1" :positions="positions" :positionsIdKey="'id'" />
     </div>
 </template>
 
@@ -14,40 +14,80 @@
         },
         data() {
             return {
-                image: require('./assets/pyros.jpg'),
+                loading: true,
+                image: null,
+                imagePath: require('./assets/test.jpg'),
+                icons: [
+                    {
+                        path: require('./assets/testIconRed.png'),
+                        image: null
+                    },
+                    {
+                        path: require('./assets/testIconBlue.png'),
+                        image: null
+                    },
+                    {
+                        path: require('./assets/testIconGreen.png'),
+                        image: null
+                    },
+                    {
+                        path: require('./assets/testIconYellow.png'),
+                        image: null
+                    },
+                    {
+                        path: require('./assets/testIconPurple.png'),
+                        image: null
+                    },
+                    {
+                        path: require('./assets/testIconOrange.png'),
+                        image: null
+                    },
+                    {
+                        path: require('./assets/testIconTeal.png'),
+                        image: null
+                    }
+                ],
                 positions: []
             }
         },
-        async mounted() {
-            this.positions = await this.loadPositions();
+        async created() {
+            this.image = await this.loadImage(this.imagePath)
+            await this.loadIcons();
+            this.positions = this.loadPositions();
+            this.loading = false
         },
         methods: {
-            async loadPositions() {
+            async loadIcons() {
+                await this.icons.reduce(async (promise, icon) => {
+                    // This line will wait for the last async function to finish.
+                    // The first iteration uses an already resolved Promise
+                    // so, it will immediately continue.
+                    await promise;
+                    icon.image = await this.loadImage(icon.path)
+                }, Promise.resolve());
+            },
+            loadPositions() {
                 let positions = []
-                let icon = {
-                    path: require('./assets/testIconRed.png'),
-                    image: null
-                }
-                icon.image = await this.loadImage(icon.path)
                 const baseObj = {
                     id: 0,
                     label: '',
-                    icons: [
-                        icon
-                    ],
+                    icons: [],
                     coordinates: {
                         x: 1,
                         y: 1
                     }
                 }
-                for (let index = 0; index < 5; index++) {
+                for (let index = 0; index < 250; index++) {
                     positions.push(Object.assign(Object.assign({}, baseObj), {
                         id: index,
                         label: `Test-${index+1}`,
                         coordinates: {
                             x: Math.floor(Math.random() * (41 - 1 + 1)) + 1,
                             y: Math.floor(Math.random() * (41 - 1 + 1)) + 1
-                        }
+                        },
+                        icons: [
+                            this.icons[Math.floor(Math.random() * (this.icons.length - 1))]
+                        ]
                     }))
 
                 }
