@@ -9,8 +9,8 @@
     export default {
         name: 'EurekaCanvas',
         props: {
-            canvasImageSource: {
-                type: String,
+            canvasImage: {
+                type: [HTMLImageElement, Image],
                 required: true
             },
             gridSizeInPixels: {
@@ -40,12 +40,10 @@
         },
         data() {
             return {
-                ignoreFirstWatcher: true,
                 canvasElement: null,
                 canvasElementWidth: 0,
                 canvasElementHeight: 0,
                 canvasContext: null,
-                canvasImage: null,
                 canvasImageWidth: 0,
                 canvasImageHeight: 0,
                 canvasImagePos: { x: 0, y: 0 },
@@ -62,6 +60,7 @@
                     x: 0,
                     y: 0
                 },
+                calculateBoundingBoxes: true,
                 positionBoundingBoxes: {
                     'northwest': {
                         box: {
@@ -104,7 +103,6 @@
         },
         mounted() {
             (async () => {
-                this.canvasImage = await this.loadImage(this.canvasImageSource)
                 this.canvasImageWidth = this.canvasImage.naturalWidth
                 this.canvasImageHeight = this.canvasImage.naturalHeight
                 this.scaledImageWidth = this.canvasImageWidth
@@ -124,13 +122,8 @@
         },
         watch: {
             positions: {
-                deep: true,
                 handler() {
-                    if (this.ignoreFirstWatcher) {
-                        this.ignoreFirstWatcher = false
-                    } else {
-                        this.draw()
-                    }
+                    this.draw()
                 }
             }
         },
@@ -158,11 +151,6 @@
         methods: {
             draw() {
                 this.canvasContext.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height)
-
-                this.canvasContext.save()
-                this.canvasContext.setTransform(1, 0, 0, 1, 0, 0)
-                this.canvasContext.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height)
-                this.canvasContext.restore()
 
                 this.canvasContext.drawImage(this.canvasImage, this.canvasImagePos.x, this.canvasImagePos.y, this.scaledImageWidth, this.scaledImageHeight)
 
@@ -211,21 +199,26 @@
                         this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
                         this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
 
-                        
-                        const boundingBox = {
-                            id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
-                            idKey: this.positionsIdKey,
-                            x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100)/ 2),
-                            y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100)/ 2),
-                            width: totalIconWidth + this.canvasContext.measureText(position.label).width,
-                            height: iconHeight,
+                        if (this.calculateBoundingBoxes) {
+                            if (position.icons[0].image === null) {
+                                console.log(JSON.stringify(position))
+                            }
+                            const boundingBox = {
+                                id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
+                                idKey: this.positionsIdKey,
+                                x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100)/ 2),
+                                y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100)/ 2),
+                                width: totalIconWidth + this.canvasContext.measureText(position.label).width,
+                                height: iconHeight,
+                            }
+                            const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
+                            quadrants.forEach(quadrant => {
+                                this.positionBoundingBoxes[quadrant].children.push(boundingBox)
+                            })
                         }
-                        const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
-                        quadrants.forEach(quadrant => {
-                            this.positionBoundingBoxes[quadrant].children.push(boundingBox)
-                        })
                     }
                 })
+                this.calculateBoundingBoxes = false
             },
             scaleToFit() {
                 let canvasRatio = this.canvasElementWidth / this.canvasElementHeight
@@ -265,6 +258,7 @@
                             break;
                     }                    
                 }
+                this.calculateBoundingBoxes = true
             },
             setUpListeners() {
                 window.addEventListener('resize', () => {
@@ -353,7 +347,6 @@
 
                 if (lastDragDelta >= 16 && (moved.x != 0 || moved.y != 0)) {
                     this.lastDragTime = now
-                    this.resetUpBoundingBoxQuadrants()
                     this.draw()
                 }
             },
@@ -486,12 +479,7 @@
                     this.resetUpBoundingBoxQuadrants()
                     this.draw()
                 }
-            },
-            loadImage: url => new Promise(resolve => {
-                let img = new Image()
-                img.onload = () => resolve(img)
-                img.src = url
-            })
+            }
         }
     }
 </script>
