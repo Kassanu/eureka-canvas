@@ -200,9 +200,6 @@
                         this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
 
                         if (this.calculateBoundingBoxes) {
-                            if (position.icons[0].image === null) {
-                                console.log(JSON.stringify(position))
-                            }
                             const boundingBox = {
                                 id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
                                 idKey: this.positionsIdKey,
