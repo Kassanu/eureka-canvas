@@ -123,6 +123,7 @@
         watch: {
             positions: {
                 handler() {
+                    this.resetUpBoundingBoxQuadrants()
                     this.draw()
                 }
             }
