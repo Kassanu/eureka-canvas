@@ -1,4 +1,15 @@
-# eureka-canvas
+# Eureka Canvas
+
+[NPM](https://www.npmjs.com/package/eureka-canvas)
+
+Eureka Canvas is a way to draw items ontop of a zoomable, draggable image. Call out sections on an image with icons, text, and more!
+
+## Installation
+
+Using npm:
+```shell
+$ npm install --save eureka-canvas
+```
 
 ## Project setup
 ```
@@ -14,16 +25,3 @@ npm run serve
 ```
 npm run build
 ```
-
-### Run your tests
-```
-npm run test
-```
-
-### Lints and fixes files
-```
-npm run lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
