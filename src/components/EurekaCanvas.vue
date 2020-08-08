@@ -617,6 +617,11 @@
         bottom: 1%;
         right: 1%;
         display: flex;
+        box-sizing: border-box;
+    }
+
+    #_eurekaCanvas-ZoomButtonsContainer * {
+        box-sizing: border-box;
     }
 
     #_eurekaCanvas-ZoomButtonsContainer .iconContainer {
@@ -628,8 +633,8 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        width: 20px;
-        height: 20px;
+        width: 32px;
+        height: 32px;
         cursor: pointer;
     }
 
@@ -688,7 +693,7 @@
         background-color: #474747;
         border: 1px solid #474747;
         color: #cccccc;
-        width: 55px;
+        width: 80px;
         padding-left: .5rem;
         padding-right: .5rem;
         padding-top: .25rem;
