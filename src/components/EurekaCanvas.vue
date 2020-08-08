@@ -1,11 +1,49 @@
 <template>
     <div id="eurekaCanvasContainer">
         <canvas draggable="true" id="eurekaCanvas"></canvas>
-        <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">{{ mouseCoordinates.x }}, {{ mouseCoordinates.y }}</div>
+        <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">{{ mouseCoordinates.x }},
+            {{ mouseCoordinates.y }}</div>
+        <div id="_eurekaCanvas-ZoomButtonsContainer">
+            <div class="iconContainer" @click="zoomTo(maximumZoom)" title="Maximize">
+                <svg version="1.1" id="_eurekaCanvas-maximize" xmlns="http://www.w3.org/2000/svg"
+                    xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 105 105"
+                    style="enable-background:new 0 0 105 105;" xml:space="preserve">
+                    <rect id="XMLID_1_" x="2.5" y="2.5" style="fill:none;stroke-miterlimit:10;" width="100"
+                        height="100" />
+                </svg>
+            </div>
+            <div class="iconContainer" @click="scaleToFit" title="Scale to fit">
+                <svg version="1.1" id="_eurekaCanvas-fittoscreen" xmlns="http://www.w3.org/2000/svg"
+                    xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 105 105"
+                    style="enable-background:new 0 0 105 105;" xml:space="preserve">
+                    <rect id="XMLID_1_" x="2.5" y="2.5" style="display:none;fill:none;stroke-miterlimit:10;" width="100"
+                        height="100" />
+                    <rect id="XMLID_15_" x="-20" y="70.5" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                        height="52.5" />
+                    <rect id="XMLID_16_" x="72.5" y="70.5" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                        height="52.5" />
+                    <rect id="XMLID_17_" x="70.5" y="-18" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                        height="52.5" />
+                    <rect id="XMLID_18_" x="-18" y="-18" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                        height="52.5" />
+                </svg>
+            </div>
+            <div id="_eurekaCanvas-zoomComboBox">
+                <div id="_eurekaCanvas-zoomComboBoxInputContainer">
+                    <input :value="comboBoxZoomLevel" @change="updateZoomFromCombobox"
+                        @focus="openZoomComboBox" id="_eurekaCanvas-input" type="text" />
+                </div>
+                <div v-show="showZoomComboBoxDropdown" ref="zoomComboBoxDropdown" id="_eurekaCanvas-zoomComboBoxLevels" :style="zoomComboBoxDropdownTopPosition">
+                    <div v-for="zoom in zoomLevelOptions" :key="zoom" @click="zoomTo(zoom); showZoomComboBoxDropdown = false" class="_eurekaCanvas-zoomComboBoxLevelsOption">{{zoom}}%</div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script>
+    import Vue from 'vue'
+
     export default {
         name: 'EurekaCanvas',
         props: {
@@ -60,7 +98,11 @@
                     x: 0,
                     y: 0
                 },
+                showZoomComboBoxDropdown: false,
+                zoomComboBoxDropdownTop: 0,
                 calculateBoundingBoxes: true,
+                zoomFactor: 1,
+                lastZoomTime: 0,
                 positionBoundingBoxes: {
                     'northwest': {
                         box: {
@@ -110,14 +152,8 @@
                 this.canvasElement = document.getElementById('eurekaCanvas')
                 this.resizeCanvas()
                 this.canvasContext = this.canvasElement.getContext('2d')
-                this.scaleToFit()
-                this.canvasImagePos.x = (this.canvasElement.width / 2) - (this.scaledImageWidth / 2)
-                this.canvasImagePos.y = (this.canvasElement.height / 2) - (this.scaledImageHeight / 2)
-
-                // this.trackTransforms()
                 this.setUpListeners()
-                this.resetUpBoundingBoxQuadrants()
-                this.draw()
+                this.scaleToFit()
             })();
         },
         watch: {
@@ -129,24 +165,63 @@
             }
         },
         computed: {
-            scaleMultiplier () {
+            scaleMultiplier() {
                 if (this.zoomLevel === 100) {
                     return 1
                 }
 
                 return (this.zoomLevel / 100)
             },
-            scaledImageMousePosition () {
+            scaledImageMousePosition() {
                 return this.relativePointOnImage(this.canvasMousePosition)
             },
-            fullImageMousePosition () {
+            fullImageMousePosition() {
                 return this.scaledPointToFullPoint(this.scaledImageMousePosition)
             },
-            mouseCoordinates () {
+            mouseCoordinates() {
                 return this.fullPointToCoordinates(this.fullImageMousePosition)
             },
-            clampedZoomLevel () {
+            clampedZoomLevel() {
                 return (((this.zoomLevel - this.minimumZoom) * (100 - 50)) / (this.maximumZoom - this.minimumZoom)) + 50
+            },
+            comboBoxZoomLevel() {
+                return `${this.zoomLevel}%`
+            },
+            zoomLevelOptions() {
+                let zoomLevels = []
+                let nearestHundred = 100
+                if (this.maximumZoom > 100) {
+                    nearestHundred = Math.floor(this.maximumZoom / 100) * 100;
+                    if (this.maximumZoom > nearestHundred) {
+                        zoomLevels.push(this.maximumZoom)
+                    }
+                    while (nearestHundred > 100) {
+                        zoomLevels.push(nearestHundred)
+                        nearestHundred -= 100
+                    }
+                }
+                zoomLevels.push(nearestHundred)
+                const subHundredZoom = [66.67, 50, 33.33, 25, 12.5]
+                while (nearestHundred > this.minimumZoom) {
+                    if (nearestHundred > 100) {
+                        nearestHundred -= 100
+                    } else if (nearestHundred <= 100) {
+                        nearestHundred = subHundredZoom.find(level => {
+                            return nearestHundred > level
+                        })
+                    }
+                    if (nearestHundred !== undefined) {
+                        zoomLevels.push(nearestHundred)
+                    }
+                }
+                if (this.minimumZoom < zoomLevels[zoomLevels.length - 1]) {
+                    zoomLevels.push(this.minimumZoom)
+                }
+
+                return zoomLevels
+            },
+            zoomComboBoxDropdownTopPosition() {
+                return {top: `-${this.zoomComboBoxDropdownTop}px`}
             }
         },
         methods: {
@@ -171,7 +246,7 @@
                         position.icons.forEach(icon => {
                             if (icon.image !== null) {
                                 const scaledImageDimensions = {
-                                    width:  icon.image.naturalWidth * (this.clampedZoomLevel / 100),
+                                    width: icon.image.naturalWidth * (this.clampedZoomLevel / 100),
                                     height: icon.image.naturalHeight * (this.clampedZoomLevel / 100)
                                 }
                                 const iconPosition = {
@@ -204,8 +279,8 @@
                             const boundingBox = {
                                 id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
                                 idKey: this.positionsIdKey,
-                                x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100)/ 2),
-                                y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100)/ 2),
+                                x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100) / 2),
+                                y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100) / 2),
                                 width: totalIconWidth + this.canvasContext.measureText(position.label).width,
                                 height: iconHeight,
                             }
@@ -230,7 +305,13 @@
                     this.scaledImageWidth = this.canvasElementWidth
                     this.scaledImageHeight = this.canvasImageHeight * (this.canvasElemenWidth / this.canvasImageWidth)
                 }
-                this.zoomLevel = (this.scaledImageWidth / this.canvasImageWidth) * 100
+                this.zoomLevel = ((this.scaledImageWidth / this.canvasImageWidth) * 100).toFixed(2)
+                this.canvasImagePos.x = (this.canvasElement.width / 2) - (this.scaledImageWidth / 2)
+                this.canvasImagePos.y = (this.canvasElement.height / 2) - (this.scaledImageHeight / 2)
+
+
+                this.resetUpBoundingBoxQuadrants()
+                this.draw()
             },
             resetUpBoundingBoxQuadrants() {
                 for (const [key, quadrant] of Object.entries(this.positionBoundingBoxes)) {
@@ -254,7 +335,7 @@
                             quadrant.box.x = 0
                             quadrant.box.y = quadrant.box.height
                             break;
-                    }                    
+                    }
                 }
                 this.calculateBoundingBoxes = true
             },
@@ -279,6 +360,7 @@
                 this.canvasElement.height = this.canvasElement.offsetHeight
             },
             clickEvent(evt) {
+                this.showZoomComboBoxDropdown = false
                 const point = { x: evt.offsetX, y: evt.offsetY }
                 this.$emit('click', {
                     coordinates: this.fullPointToCoordinates(this.scaledPointToFullPoint(this.relativePointOnImage(point)))
@@ -418,13 +500,13 @@
                 return { x: point.x - this.canvasImagePos.x, y: point.y - this.canvasImagePos.y }
             },
             scaledPointToFullPoint(scaledPoint) {
-                return {x: scaledPoint.x / this.scaleMultiplier, y: scaledPoint.y / this.scaleMultiplier}
+                return { x: scaledPoint.x / this.scaleMultiplier, y: scaledPoint.y / this.scaleMultiplier }
             },
             fullPointToScaledPoint(fullPoint) {
-                return {x: fullPoint.x * this.scaleMultiplier, y: fullPoint.y * this.scaleMultiplier}
+                return { x: fullPoint.x * this.scaleMultiplier, y: fullPoint.y * this.scaleMultiplier }
             },
             fullPointToCoordinates(fullPoint) {
-                return {x: (Math.round((fullPoint.x / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset, y: (Math.round((fullPoint.y / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset}
+                return { x: (Math.round((fullPoint.x / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset, y: (Math.round((fullPoint.y / this.gridSizeInPixels) * 10) / 10) + this.coordinatesOffset }
             },
             coordinatesToFullPoint(coordinates) {
                 return {
@@ -446,20 +528,30 @@
             },
             zoomImage(delta, point) {
                 const oldZoom = this.zoomLevel
+                const now = Date.now()
+                if (now - this.lastZoomTime < 100) {
+                    if (this.zoomFactor < 5) {
+                        this.zoomFactor += 1
+                    }
+                } else {
+                    this.zoomFactor = 1
+                }
+                this.lastZoomTime = now
+                const changeAmount = 1 * this.zoomFactor
                 if (delta > 0) {
                     // mousewheel down, zoom out
-                    if (this.minimumZoom > (this.zoomLevel | 0) - 1) {
+                    if (this.minimumZoom > (this.zoomLevel | 0) - changeAmount) {
                         // clamp
                         this.zoomLevel = this.minimumZoom
                     } else {
-                        this.zoomLevel = (this.zoomLevel | 0) - 1
+                        this.zoomLevel = (this.zoomLevel | 0) - changeAmount
                     }
                 } else {
                     // mousewheel up, zoom in
-                    if (this.maximumZoom < (this.zoomLevel | 0) + 1) {
+                    if (this.maximumZoom < (this.zoomLevel | 0) + changeAmount) {
                         this.zoomLevel = this.maximumZoom
                     } else {
-                        this.zoomLevel = (this.zoomLevel | 0) + 1
+                        this.zoomLevel = (this.zoomLevel | 0) + changeAmount
                     }
                 }
                 if (oldZoom !== this.zoomLevel) {
@@ -477,6 +569,26 @@
                     this.resetUpBoundingBoxQuadrants()
                     this.draw()
                 }
+            },
+            zoomTo(level) {
+                this.zoomLevel = level
+                let newScaledImageWidth = this.canvasImageWidth * (this.zoomLevel / 100)
+                let newScaledImageHeight = this.canvasImageHeight * (this.zoomLevel / 100)
+                this.scaledImageWidth = newScaledImageWidth
+                this.scaledImageHeight = newScaledImageHeight
+                this.canvasImagePos.x = (this.canvasElement.width / 2) - (this.scaledImageWidth / 2)
+                this.canvasImagePos.y = (this.canvasElement.height / 2) - (this.scaledImageHeight / 2)
+                this.resetUpBoundingBoxQuadrants()
+                this.draw()
+            },
+            updateZoomFromCombobox(evt) {
+                this.zoomTo(evt.target.value.replace(/%/g, ''))
+            },
+            openZoomComboBox() {
+                this.showZoomComboBoxDropdown = true
+                Vue.nextTick(() => {
+                    this.zoomComboBoxDropdownTop = this.$refs.zoomComboBoxDropdown.clientHeight
+                })
             }
         }
     }
@@ -498,5 +610,89 @@
         border: 1px solid rgba(25, 25, 25, 0.8);
         color: #eee;
         padding: 5px;
+    }
+
+    #_eurekaCanvas-ZoomButtonsContainer {
+        position: absolute;
+        bottom: 1%;
+        right: 1%;
+        display: flex;
+    }
+
+    #_eurekaCanvas-ZoomButtonsContainer .iconContainer {
+        background-color: #333;
+        border: 1px solid #333;
+        color: #eee;
+        padding: 5px;
+        margin-left: 5px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+    }
+
+    #_eurekaCanvas-ZoomButtonsContainer .iconContainer svg {
+        stroke: #eee;
+        stroke-width: 10;
+    }
+
+    #_eurekaCanvas-maximize {
+        width: 16px;
+        height: 16px;
+    }
+
+    #_eurekaCanvas-fittoscreen {
+        width: 16px;
+        height: 16px;
+    }
+
+    #_eurekaCanvas-zoomComboBox {
+        height: 32px;
+        margin-left: 5px;
+        display: flex;
+        justify-content: center;
+        align-items: stretch;
+        position: relative;
+    }
+
+    #_eurekaCanvas-zoomComboBoxInputContainer {
+        height: 100%;
+        display: flex;
+    }
+
+    #_eurekaCanvas-zoomComboBoxLevels {
+        background-color: #474747;
+        border-top: 1px solid #767676;
+        border-right: 1px solid #767676;
+        border-left: 1px solid #767676;
+        color: #cccccc;
+        position: absolute;
+        left: 0;
+        width: calc(100% - 2px);
+    }
+
+    ._eurekaCanvas-zoomComboBoxLevelsOption {
+        padding-top: .25rem;
+        padding-bottom: .25rem;
+        border-bottom: 1px solid #ccc;
+        cursor: pointer;
+    }
+
+    ._eurekaCanvas-zoomComboBoxLevelsOption:hover {
+        background-color: #767676;
+    }
+
+    #_eurekaCanvas-input {
+        background-color: #474747;
+        border: 1px solid #474747;
+        color: #cccccc;
+        width: 55px;
+        padding-left: .5rem;
+        padding-right: .5rem;
+        padding-top: .25rem;
+        padding-bottom: .25rem;
+        direction: rtl;
     }
 </style>
