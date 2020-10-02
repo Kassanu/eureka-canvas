@@ -1,6 +1,6 @@
 <template>
     <div id="eurekaCanvasContainer">
-        <canvas draggable="true" id="eurekaCanvas"></canvas>
+        <canvas id="eurekaCanvas"></canvas>
         <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">{{ mouseCoordinates.x }},
             {{ mouseCoordinates.y }}</div>
         <div id="_eurekaCanvas-ZoomButtonsContainer">
@@ -86,7 +86,7 @@
                 canvasImageHeight: 0,
                 canvasImagePos: { x: 0, y: 0 },
                 dragStart: null,
-                dragged: false,
+                dragging: false,
                 scaleFactor: 1.1,
                 zoomLevel: 100,
                 lastDragPosition: { x: 0, y: 0 },
@@ -346,9 +346,8 @@
                 }, false);
                 this.canvasElement.addEventListener('click', this.clickEvent, false)
                 this.canvasElement.addEventListener('wheel', this.wheelEvent, false)
-                this.canvasElement.addEventListener('drag', this.dragEvent, false)
-                this.canvasElement.addEventListener('dragstart', this.dragStartEvent, false)
-                this.canvasElement.addEventListener('dragend', this.dragEndEvent, false)
+                this.canvasElement.addEventListener('mousedown', this.mouseDownEvent, false)
+                this.canvasElement.addEventListener('mouseup', this.mouseUpEvent, false)
                 this.canvasElement.addEventListener('mousemove', this.mouseMoveEvent, false)
                 this.canvasElement.addEventListener('mouseleave', this.mouseLeaveEvent, false)
                 document.addEventListener('dragover', (e) => e.preventDefault(), true)
@@ -430,21 +429,21 @@
                     this.draw()
                 }
             },
-            dragStartEvent(evt) {
-                var img = new Image();
-                img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
-                evt.dataTransfer.setDragImage(img, 0, 0);
-                event.dataTransfer.dropEffect = "move";
-                event.dataTransfer.effectAllowed = "move";
+            mouseDownEvent(evt) {
+                this.dragging = true
                 document.documentElement.style.cursor = 'move'
                 this.lastDragPosition = { x: evt.offsetX, y: evt.offsetY }
             },
-            dragEndEvent() {
+            mouseUpEvent() {
                 document.documentElement.style.cursor = 'auto'
+                this.dragging = false
             },
             mouseMoveEvent(evt) {
                 this.canvasMousePosition = { x: evt.offsetX, y: evt.offsetY }
                 this.toggleCoordinates(this.pointIsOnImage(this.canvasMousePosition))
+                if (this.dragging) {
+                    this.dragEvent(evt)
+                }
             },
             mouseLeaveEvent() {
                 this.toggleCoordinates(false)
