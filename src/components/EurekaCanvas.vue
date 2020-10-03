@@ -87,6 +87,9 @@
                 canvasImagePos: { x: 0, y: 0 },
                 dragStart: null,
                 dragging: false,
+                pinchZoom: false,
+                pinchDistance: 0,
+                lastPinchDistance: 0,
                 scaleFactor: 1.1,
                 zoomLevel: 100,
                 lastDragPosition: { x: 0, y: 0 },
@@ -303,12 +306,11 @@
                     this.scaledImageHeight = this.canvasElementHeight
                 } else {
                     this.scaledImageWidth = this.canvasElementWidth
-                    this.scaledImageHeight = this.canvasImageHeight * (this.canvasElemenWidth / this.canvasImageWidth)
+                    this.scaledImageHeight = this.canvasImageHeight * (this.canvasElementWidth / this.canvasImageWidth)
                 }
                 this.zoomLevel = ((this.scaledImageWidth / this.canvasImageWidth) * 100).toFixed(2)
                 this.canvasImagePos.x = (this.canvasElement.width / 2) - (this.scaledImageWidth / 2)
                 this.canvasImagePos.y = (this.canvasElement.height / 2) - (this.scaledImageHeight / 2)
-
 
                 this.resetUpBoundingBoxQuadrants()
                 this.draw()
@@ -347,8 +349,11 @@
                 this.canvasElement.addEventListener('click', this.clickEvent, false)
                 this.canvasElement.addEventListener('wheel', this.wheelEvent, false)
                 this.canvasElement.addEventListener('mousedown', this.mouseDownEvent, false)
+                this.canvasElement.addEventListener('touchstart', this.mouseDownEvent, false)
                 this.canvasElement.addEventListener('mouseup', this.mouseUpEvent, false)
+                this.canvasElement.addEventListener('touchend', this.mouseUpEvent, false)
                 this.canvasElement.addEventListener('mousemove', this.mouseMoveEvent, false)
+                this.canvasElement.addEventListener('touchmove', this.mouseMoveEvent, false)
                 this.canvasElement.addEventListener('mouseleave', this.mouseLeaveEvent, false)
                 document.addEventListener('dragover', (e) => e.preventDefault(), true)
             },
@@ -360,7 +365,14 @@
             },
             clickEvent(evt) {
                 this.showZoomComboBoxDropdown = false
-                const point = { x: evt.offsetX, y: evt.offsetY }
+                const point = {x: 0, y: 0}
+                if (evt.touches) {
+                    point.x = evt.touches[0].clientX
+                    point.y = evt.touches[0].clientY
+                } else {
+                    point.x =  evt.offsetX
+                    point.y = evt.offsetY
+                }
                 this.$emit('click', {
                     coordinates: this.fullPointToCoordinates(this.scaledPointToFullPoint(this.relativePointOnImage(point)))
                 })
@@ -373,8 +385,16 @@
                 }
             },
             dragEvent(evt) {
-                const moved = { x: evt.offsetX - this.lastDragPosition.x, y: evt.offsetY - this.lastDragPosition.y }
-                this.lastDragPosition = { x: evt.offsetX, y: evt.offsetY }
+                const moved = {x: 0, y: 0}
+                if (evt.type === "touchmove") {
+                    moved.x = evt.touches[0].clientX - this.lastDragPosition.x
+                    moved.y = evt.touches[0].clientY - this.lastDragPosition.y
+                    this.lastDragPosition = { x: evt.touches[0].clientX, y: evt.touches[0].clientY }
+                } else {
+                    moved.x = evt.offsetX - this.lastDragPosition.x
+                    moved.y = evt.offsetY - this.lastDragPosition.y
+                    this.lastDragPosition = { x: evt.offsetX, y: evt.offsetY }
+                }
                 const now = Date.now();
                 const lastDragDelta = now - this.lastDragTime;
                 this.canvasImagePos.x += moved.x
@@ -429,20 +449,56 @@
                     this.draw()
                 }
             },
+            pinchEvent(evt) {
+                this.pinchDistance = Math.sqrt(
+                    (evt.touches[0].clientX - evt.touches[1].clientX) *
+                    (evt.touches[0].clientX - evt.touches[1].clientX) +
+                    (evt.touches[0].clientY - evt.touches[1].clientY) *
+                    (evt.touches[0].clientY - evt.touches[1].clientY)
+                )
+
+                const pinchPosition = {
+                    x: (evt.touches[0].clientX + evt.touches[1].clientX) / 2,
+                    y: (evt.touches[0].clientY + evt.touches[1].clientY) / 2
+                }
+
+                this.zoomImage(this.pinchDistance - this.lastPinchDistance > 0 ? -1 : 1, pinchPosition)
+
+                this.lastPinchDistance = this.pinchDistance
+            },
             mouseDownEvent(evt) {
                 this.dragging = true
                 document.documentElement.style.cursor = 'move'
-                this.lastDragPosition = { x: evt.offsetX, y: evt.offsetY }
+                if (evt.type === "touchstart") {
+                    this.lastDragPosition = { x: evt.touches[0].clientX, y: evt.touches[0].clientY }
+                    if (evt.touches.length === 2) {
+                        this.dragging = false
+                        this.pinchZoom = true
+                    }
+                } else {
+                    this.lastDragPosition = { x: evt.offsetX, y: evt.offsetY }
+                }
             },
             mouseUpEvent() {
                 document.documentElement.style.cursor = 'auto'
                 this.dragging = false
+                this.pinchZoom = false
             },
             mouseMoveEvent(evt) {
-                this.canvasMousePosition = { x: evt.offsetX, y: evt.offsetY }
+                evt.preventDefault();
+                if (evt.type === "touchmove") {
+                    this.canvasMousePosition = { x: evt.touches[0].clientX, y: evt.touches[0].clientY }
+                } else {
+                    this.canvasMousePosition = { x: evt.offsetX, y: evt.offsetY }
+                }
+
                 this.toggleCoordinates(this.pointIsOnImage(this.canvasMousePosition))
                 if (this.dragging) {
                     this.dragEvent(evt)
+                }
+
+                if (this.pinchZoom) {
+                    this.pinchEvent(evt)
                 }
             },
             mouseLeaveEvent() {
@@ -528,7 +584,7 @@
             zoomImage(delta, point) {
                 const oldZoom = this.zoomLevel
                 const now = Date.now()
-                if (now - this.lastZoomTime < 100) {
+                if (!this.pinchZoom && now - this.lastZoomTime < 100) {
                     if (this.zoomFactor < 5) {
                         this.zoomFactor += 1
                     }
