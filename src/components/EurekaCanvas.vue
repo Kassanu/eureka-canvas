@@ -236,16 +236,22 @@
                 this.drawPositions()
             },
             drawPositions() {
+                let coordInView = false
+                let drawPosition = false
+                let offsetDrawPosition = false
+                let lastIconWidth = 0
+                let totalIconWidth = 0
+                let iconHeight = 0
                 this.positions.forEach((position, index) => {
-                        const coordInView = this.isCoordinateInView(position.coordinates)
-                        const drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
-                        const offsetDrawPosition = {
+                        coordInView = this.isCoordinateInView(position.coordinates)
+                        drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
+                        offsetDrawPosition = {
                             x: drawPosition.x + this.canvasImagePos.x,
                             y: drawPosition.y + this.canvasImagePos.y,
                         }
-                        let lastIconWidth = 0
-                        let totalIconWidth = 0
-                        let iconHeight = 0
+                        lastIconWidth = 0
+                        totalIconWidth = 0
+                        iconHeight = 0
                         position.icons.forEach(icon => {
                             if (icon.image !== null) {
                                 const scaledImageDimensions = {
