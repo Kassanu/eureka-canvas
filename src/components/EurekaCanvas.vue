@@ -237,7 +237,7 @@
             },
             drawPositions() {
                 this.positions.forEach((position, index) => {
-                    if (this.isCoordinateInView(position.coordinates)) {
+                        const coordInView = this.isCoordinateInView(position.coordinates)
                         const drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
                         const offsetDrawPosition = {
                             x: drawPosition.x + this.canvasImagePos.x,
@@ -258,7 +258,9 @@
                                 }
                                 lastIconWidth = scaledImageDimensions.width
                                 totalIconWidth += lastIconWidth
-                                this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
+                                if (coordInView) {
+                                    this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
+                                }
                                 if (scaledImageDimensions.height > iconHeight) {
                                     iconHeight = scaledImageDimensions.height
                                 }
@@ -270,13 +272,15 @@
                             y: offsetDrawPosition.y
                         }
 
-                        this.canvasContext.textBaseline = 'middle'
-                        this.canvasContext.font = `${18 * (this.clampedZoomLevel / 100)}pt sans-serif`
-                        this.canvasContext.strokeStyle = 'rgba(0, 0, 0, 1)'
-                        this.canvasContext.lineWidth = 4
-                        this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
-                        this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
-                        this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
+                        if (coordInView) {
+                            this.canvasContext.textBaseline = 'middle'
+                            this.canvasContext.font = `${18 * (this.clampedZoomLevel / 100)}pt sans-serif`
+                            this.canvasContext.strokeStyle = 'rgba(0, 0, 0, 1)'
+                            this.canvasContext.lineWidth = 4
+                            this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
+                            this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
+                            this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
+                        }
 
                         if (this.calculateBoundingBoxes) {
                             const boundingBox = {
@@ -292,7 +296,6 @@
                                 this.positionBoundingBoxes[quadrant].children.push(boundingBox)
                             })
                         }
-                    }
                 })
                 this.calculateBoundingBoxes = false
             },
