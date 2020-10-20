@@ -4,13 +4,8 @@
         <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">
             {{ mouseCoordinates.x }}, {{ mouseCoordinates.y }}
         </div>
-        <ZoomContainer
-            :minimumZoom="minimumZoom"
-            :maximumZoom="maximumZoom"
-            :zoomLevel="zoomLevel"
-            @scaleToFit="scaleToFit"
-            @zoomTo="zoomTo"
-        />
+        <ZoomContainer :minimumZoom="minimumZoom" :maximumZoom="maximumZoom" :zoomLevel="zoomLevel"
+            @scaleToFit="scaleToFit" @zoomTo="zoomTo" />
     </div>
 </template>
 
@@ -117,7 +112,8 @@
                         },
                         children: []
                     }
-                }
+                },
+                debugBoundingBoxes: false
             }
         },
         mounted() {
@@ -162,8 +158,8 @@
                 return (((this.zoomLevel - this.minimumZoom) * (100 - 50)) / (this.maximumZoom - this.minimumZoom)) + 50
             },
             pixelRatio() {
-                    let dpr = window.devicePixelRatio || 1
-                    let bsr = this.canvasContext.webkitBackingStorePixelRatio ||
+                let dpr = window.devicePixelRatio || 1
+                let bsr = this.canvasContext.webkitBackingStorePixelRatio ||
                     this.canvasContext.mozBackingStorePixelRatio ||
                     this.canvasContext.msBackingStorePixelRatio ||
                     this.canvasContext.oBackingStorePixelRatio ||
@@ -179,76 +175,198 @@
                 this.canvasContext.drawImage(this.canvasImage, this.canvasImagePos.x, this.canvasImagePos.y, this.scaledImageWidth, this.scaledImageHeight)
 
                 this.drawPositions()
+
+                if (this.debugBoundingBoxes) {
+                    Object.keys(this.positionBoundingBoxes).forEach(key => {
+                        this.positionBoundingBoxes[key].children.forEach(box => {
+                            this.canvasContext.strokeStyle='red';
+                    this.canvasContext.lineWidth=1;
+                    this.canvasContext.strokeRect(box.x,box.y,box.width,box.height);
+                        })
+                    })
+                }
             },
             drawPositions() {
+                this.positions.forEach((position, index) => {
+                    switch (position.drawStyle) {
+                        case 'circle':
+                            this.drawCircle(position, index)
+                            break;
+                        default:
+                            this.drawDefault(position, index)
+                            break;
+                    }
+                })
+                this.calculateBoundingBoxes = false
+            },
+            drawDefault(position, index) {
                 let coordInView = false
                 let drawPosition = false
                 let offsetDrawPosition = false
                 let lastIconWidth = 0
                 let totalIconWidth = 0
                 let iconHeight = 0
-                this.positions.forEach((position, index) => {
-                        coordInView = this.isCoordinateInView(position.coordinates)
-                        drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
-                        offsetDrawPosition = {
-                            x: drawPosition.x + this.canvasImagePos.x,
-                            y: drawPosition.y + this.canvasImagePos.y,
+                coordInView = this.isCoordinateInView(position.coordinates)
+                drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
+                offsetDrawPosition = {
+                    x: drawPosition.x + this.canvasImagePos.x,
+                    y: drawPosition.y + this.canvasImagePos.y,
+                }
+                lastIconWidth = 0
+                totalIconWidth = 0
+                iconHeight = 0
+                position.icons.forEach(icon => {
+                    if (icon.image !== null) {
+                        const scaledImageDimensions = {
+                            width: icon.image.naturalWidth * (this.clampedZoomLevel / 100),
+                            height: icon.image.naturalHeight * (this.clampedZoomLevel / 100)
                         }
-                        lastIconWidth = 0
-                        totalIconWidth = 0
-                        iconHeight = 0
-                        position.icons.forEach(icon => {
-                            if (icon.image !== null) {
-                                const scaledImageDimensions = {
-                                    width: icon.image.naturalWidth * (this.clampedZoomLevel / 100),
-                                    height: icon.image.naturalHeight * (this.clampedZoomLevel / 100)
-                                }
-                                const iconPosition = {
-                                    x: (offsetDrawPosition.x - (scaledImageDimensions.width / 2)) + totalIconWidth,
-                                    y: offsetDrawPosition.y - (scaledImageDimensions.height / 2)
-                                }
-                                lastIconWidth = scaledImageDimensions.width
-                                totalIconWidth += lastIconWidth
-                                if (coordInView) {
-                                    this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
-                                }
-                                if (scaledImageDimensions.height > iconHeight) {
-                                    iconHeight = scaledImageDimensions.height
-                                }
-                            }
-                        })
+                        const iconPosition = {
+                            x: (offsetDrawPosition.x - (scaledImageDimensions.width / 2)) + totalIconWidth,
+                            y: offsetDrawPosition.y - (scaledImageDimensions.height / 2)
+                        }
+                        lastIconWidth = scaledImageDimensions.width
+                        totalIconWidth += lastIconWidth
+                        if (coordInView) {
+                            this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
+                        }
+                        if (scaledImageDimensions.height > iconHeight) {
+                            iconHeight = scaledImageDimensions.height
+                        }
+                    }
+                })
 
-                        const textPosition = {
-                            x: offsetDrawPosition.x + totalIconWidth - (lastIconWidth / 2),
-                            y: offsetDrawPosition.y
+                const textPosition = {
+                    x: offsetDrawPosition.x + totalIconWidth - (lastIconWidth / 2),
+                    y: offsetDrawPosition.y
+                }
+
+                if (coordInView) {
+                    this.canvasContext.textBaseline = 'middle'
+                    this.canvasContext.font = `${18 * (this.clampedZoomLevel / 100)}pt sans-serif`
+                    this.canvasContext.strokeStyle = 'rgba(0, 0, 0, 1)'
+                    this.canvasContext.lineWidth = 4
+                    this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
+                    this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
+                    this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
+                }
+
+                if (this.calculateBoundingBoxes) {
+                    const boundingBox = {
+                        id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
+                        idKey: this.positionsIdKey,
+                        x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100) / 2),
+                        y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100) / 2),
+                        width: totalIconWidth + this.canvasContext.measureText(position.label).width,
+                        height: iconHeight,
+                    }
+                    const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
+                    quadrants.forEach(quadrant => {
+                        this.positionBoundingBoxes[quadrant].children.push(boundingBox)
+                    })
+                }
+            },
+            drawCircle(position, index) {
+                let coordInView = this.isCoordinateInView(position.coordinates)
+                let drawPosition = this.fullPointToScaledPoint(this.coordinatesToFullPoint(position.coordinates))
+                let offsetDrawPosition = {
+                    x: drawPosition.x + this.canvasImagePos.x,
+                    y: drawPosition.y + this.canvasImagePos.y,
+                }
+
+                let icon = position.icons[0]
+
+                let radius = (50 * (this.clampedZoomLevel / 100)) * (this.clampedZoomLevel / 100);
+                let arcBounds = this.arcBounds(offsetDrawPosition.x, offsetDrawPosition.y, radius, 0, 2 * Math.PI);
+
+                if (coordInView) {
+                    this.canvasContext.beginPath();
+                    this.canvasContext.arc(offsetDrawPosition.x, offsetDrawPosition.y, radius, 0, 2 * Math.PI, false);
+                    this.canvasContext.fillStyle = 'rgba(111, 155, 201, 0.5)';
+                    this.canvasContext.fill();
+                    this.canvasContext.lineWidth = 1;
+                    this.canvasContext.strokeStyle = 'rgba(111, 155, 201, 1)';
+                    this.canvasContext.stroke();
+
+                    if (icon && icon.image !== null) {
+                        const scaledImageDimensions = {
+                            width: icon.image.naturalWidth * (this.clampedZoomLevel / 100),
+                            height: icon.image.naturalHeight * (this.clampedZoomLevel / 100)
+                        }
+                        const iconPosition = {
+                            x: (offsetDrawPosition.x - (scaledImageDimensions.width / 2)),
+                            y: offsetDrawPosition.y - (scaledImageDimensions.height / 2)
                         }
 
                         if (coordInView) {
-                            this.canvasContext.textBaseline = 'middle'
-                            this.canvasContext.font = `${18 * (this.clampedZoomLevel / 100)}pt sans-serif`
-                            this.canvasContext.strokeStyle = 'rgba(0, 0, 0, 1)'
-                            this.canvasContext.lineWidth = 4
-                            this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
-                            this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
-                            this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
+                            this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
                         }
+                    }
+                }
 
-                        if (this.calculateBoundingBoxes) {
-                            const boundingBox = {
-                                id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
-                                idKey: this.positionsIdKey,
-                                x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100) / 2),
-                                y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100) / 2),
-                                width: totalIconWidth + this.canvasContext.measureText(position.label).width,
-                                height: iconHeight,
-                            }
-                            const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
-                            quadrants.forEach(quadrant => {
-                                this.positionBoundingBoxes[quadrant].children.push(boundingBox)
-                            })
-                        }
-                })
-                this.calculateBoundingBoxes = false
+                if (this.calculateBoundingBoxes) {
+                    const boundingBox = {
+                        id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
+                        idKey: this.positionsIdKey,
+                        x: arcBounds.x - this.canvasImagePos.x,
+                        y: arcBounds.y - this.canvasImagePos.y,
+                        width: arcBounds.width,
+                        height: arcBounds.height,
+                    }
+                    const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
+                    quadrants.forEach(quadrant => {
+                        this.positionBoundingBoxes[quadrant].children.push(boundingBox)
+                    })
+                }
+            },
+            arcBounds(cx, cy, radius, startAngle, endAngle) {
+                var minX = 1000000;
+                var minY = 1000000;
+                var maxX = -1000000;
+                var maxY = -1000000;
+
+                var possibleBoundingPoints = []
+                // centerpoint
+                possibleBoundingPoints.push({ x: cx, y: cy });
+                // starting angle
+                possibleBoundingPoints.push(this.arcpoint(cx, cy, radius, startAngle));
+                // ending angle
+                possibleBoundingPoints.push(this.arcpoint(cx, cy, radius, endAngle));
+                // 0 radians
+                if (0 >= startAngle && 0 <= endAngle) {
+                    possibleBoundingPoints.push(this.arcpoint(cx, cy, radius, 0));
+                }
+                // PI/2 radians
+                var angle = Math.PI / 2;
+                if (angle >= startAngle && angle <= endAngle) {
+                    possibleBoundingPoints.push(this.arcpoint(cx, cy, radius, angle));
+                }
+                // PI radians
+                var angle = Math.PI;
+                if (angle >= startAngle && angle <= endAngle) {
+                    possibleBoundingPoints.push(this.arcpoint(cx, cy, radius, angle));
+                }
+                // PI*3/2 radians
+                var angle = Math.PI * 3 / 2;
+                if (angle >= startAngle && angle <= endAngle) {
+                    possibleBoundingPoints.push(this.arcpoint(cx, cy, radius, angle));
+                }
+
+                for (var i = 0; i < possibleBoundingPoints.length; i++) {
+                    var pt = possibleBoundingPoints[i];
+                    if (pt.x < minX) { minX = pt.x; }
+                    if (pt.y < minY) { minY = pt.y; }
+                    if (pt.x > maxX) { maxX = pt.x; }
+                    if (pt.y > maxY) { maxY = pt.y; }
+                }
+
+                return ({ x: minX, y: minY, width: maxX - minX, height: maxY - minY });
+
+            },
+            arcpoint(cx, cy, radius, angle) {
+                var x = cx + radius * Math.cos(angle);
+                var y = cy + radius * Math.sin(angle);
+                return ({ x: x, y: y });
             },
             scaleToFit() {
                 let canvasRatio = this.canvasElementWidth / this.canvasElementHeight
@@ -262,7 +380,7 @@
                     this.scaledImageWidth = this.canvasElementWidth
                     this.scaledImageHeight = this.canvasImageHeight * (this.canvasElementWidth / this.canvasImageWidth)
                 }
-                this.zoomLevel = ((this.scaledImageWidth / this.canvasImageWidth) * 100).toFixed(2)
+                this.zoomLevel = parseFloat(((this.scaledImageWidth / this.canvasImageWidth) * 100).toFixed(2))
                 this.canvasImagePos.x = (this.canvasElement.width / 2) - (this.scaledImageWidth / 2)
                 this.canvasImagePos.y = (this.canvasElement.height / 2) - (this.scaledImageHeight / 2)
 
@@ -319,12 +437,12 @@
             },
             clickEvent(evt) {
                 this.showZoomComboBoxDropdown = false
-                const point = {x: 0, y: 0}
+                const point = { x: 0, y: 0 }
                 if (evt.touches) {
                     point.x = evt.touches[0].clientX
                     point.y = evt.touches[0].clientY
                 } else {
-                    point.x =  evt.offsetX
+                    point.x = evt.offsetX
                     point.y = evt.offsetY
                 }
                 this.$emit('click', {
@@ -339,7 +457,7 @@
                 }
             },
             dragEvent(evt) {
-                const moved = {x: 0, y: 0}
+                const moved = { x: 0, y: 0 }
                 if (evt.type === "touchmove") {
                     moved.x = evt.touches[0].clientX - this.lastDragPosition.x
                     moved.y = evt.touches[0].clientY - this.lastDragPosition.y
