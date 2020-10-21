@@ -203,6 +203,7 @@
                 let coordInView = false
                 let drawPosition = false
                 let offsetDrawPosition = false
+                let firstIconWidth = 0
                 let lastIconWidth = 0
                 let totalIconWidth = 0
                 let iconHeight = 0
@@ -212,10 +213,17 @@
                     x: drawPosition.x + this.canvasImagePos.x,
                     y: drawPosition.y + this.canvasImagePos.y,
                 }
+                firstIconWidth = 0
                 lastIconWidth = 0
                 totalIconWidth = 0
                 iconHeight = 0
-                position.icons.forEach(icon => {
+                const iconsBoundingBox = {
+                    x: 0,
+                    y: 0,
+                    width: 0,
+                    height: 0
+                }
+                position.icons.forEach((icon, index) => {
                     if (icon.image !== null) {
                         const scaledImageDimensions = {
                             width: icon.image.naturalWidth * (this.clampedZoomLevel / 100),
@@ -226,38 +234,78 @@
                             y: offsetDrawPosition.y - (scaledImageDimensions.height / 2)
                         }
                         lastIconWidth = scaledImageDimensions.width
+                        if (index === 0) {
+                            firstIconWidth = lastIconWidth
+                            iconsBoundingBox.x = iconPosition.x
+                            iconsBoundingBox.y = iconPosition.y
+                        }
                         totalIconWidth += lastIconWidth
+                        iconsBoundingBox.width = totalIconWidth
                         if (coordInView) {
                             this.canvasContext.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
                         }
                         if (scaledImageDimensions.height > iconHeight) {
                             iconHeight = scaledImageDimensions.height
                         }
+                        iconsBoundingBox.height = iconHeight
+
                     }
                 })
 
-                const textPosition = {
-                    x: offsetDrawPosition.x + totalIconWidth - (lastIconWidth / 2),
+                
+                const textDrawPosition = {
+                    x: offsetDrawPosition.x,
                     y: offsetDrawPosition.y
                 }
 
-                if (coordInView) {
-                    this.canvasContext.textBaseline = 'middle'
-                    this.canvasContext.font = `${18 * (this.clampedZoomLevel / 100)}pt sans-serif`
-                    this.canvasContext.strokeStyle = 'rgba(0, 0, 0, 1)'
-                    this.canvasContext.lineWidth = 4
-                    this.canvasContext.miterLimit = 2
-                    this.canvasContext.strokeText(position.label, textPosition.x, textPosition.y)
-                    this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
-                    this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
+                let fontSize = 18 * (this.clampedZoomLevel / 100)
+                this.canvasContext.textBaseline = 'middle'
+                this.canvasContext.font = `${fontSize}pt sans-serif`
+                this.canvasContext.strokeStyle = 'rgba(0, 0, 0, 1)'
+                this.canvasContext.lineWidth = 4
+                this.canvasContext.miterLimit = 2
+                this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
+                let textWidthAndHeight = this.calculateTextWidthAndHeight(position.label, fontSize)
+
+                switch (position.textPosition) {
+                    case 'top':
+                        textDrawPosition.x -= (textWidthAndHeight.width / 2)
+                        textDrawPosition.y -= iconHeight
+                        break;
+                    case 'bottom':
+                        textDrawPosition.x -= (textWidthAndHeight.width / 2)
+                        textDrawPosition.y += iconHeight
+                        break;
+                    case 'left':
+                        textDrawPosition.x -= (textWidthAndHeight.width + (firstIconWidth / 2))
+                        break;
+                    case 'right':
+                    default:
+                        textDrawPosition.x += totalIconWidth - (lastIconWidth / 2)
+                        break;
                 }
+
+                const textBoundingBox = {
+                    x: textDrawPosition.x,
+                    y: textDrawPosition.y - (textWidthAndHeight.height / 2),
+                    width: textWidthAndHeight.width,
+                    height: textWidthAndHeight.height
+                }
+
+                if (coordInView) {
+                    this.canvasContext.strokeText(position.label, textDrawPosition.x, textDrawPosition.y)
+                    this.canvasContext.fillText(position.label, textDrawPosition.x, textDrawPosition.y)
+                }
+
+                const fullBoundingBox = this.rectBounds(iconsBoundingBox, textBoundingBox)
+
                 this.addBoundingBox({
                     id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
                     idKey: this.positionsIdKey,
-                    x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100) / 2),
-                    y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100) / 2),
-                    width: totalIconWidth + this.canvasContext.measureText(position.label).width,
-                    height: iconHeight,
+                    x: fullBoundingBox.x - this.canvasImagePos.x,
+                    y: fullBoundingBox.y - this.canvasImagePos.y,
+                    width: fullBoundingBox.width,
+                    height: fullBoundingBox.height,
                 })
             },
             drawCircle(position, index) {
@@ -305,6 +353,27 @@
                     width: arcBounds.width,
                     height: arcBounds.height,
                 })
+            },
+            calculateTextWidthAndHeight(text, fontSize) {
+                let widthAndHeight = {
+                    width: this.canvasContext.measureText(text).width,
+                    height: fontSize
+                }
+
+                return widthAndHeight
+            },
+            rectBounds(rect1, rect2) {
+                let xMin = Math.min(rect1.x, rect2.x)
+                let yMin = Math.min(rect1.y, rect2.y)
+                let xMax = Math.max(rect1.x + rect1.width, rect2.x + rect2.width)
+                let yMax = Math.max(rect1.y + rect1.height, rect2.y + rect2.height)
+
+                return {
+                    x: xMin,
+                    y: yMin,
+                    width: xMax - xMin,
+                    height: yMax - yMin
+                }
             },
             arcBounds(cx, cy, radius, startAngle, endAngle) {
                 var minX = 1000000;
