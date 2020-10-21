@@ -19,31 +19,7 @@
                 imagePath: require('./assets/test.jpg'),
                 icons: [
                     {
-                        path: require('./assets/testIconRed.png'),
-                        image: null
-                    },
-                    {
-                        path: require('./assets/testIconBlue.png'),
-                        image: null
-                    },
-                    {
-                        path: require('./assets/testIconGreen.png'),
-                        image: null
-                    },
-                    {
-                        path: require('./assets/testIconYellow.png'),
-                        image: null
-                    },
-                    {
-                        path: require('./assets/testIconPurple.png'),
-                        image: null
-                    },
-                    {
-                        path: require('./assets/testIconOrange.png'),
-                        image: null
-                    },
-                    {
-                        path: require('./assets/testIconTeal.png'),
+                        path: require('./assets/boss.png'),
                         image: null
                     }
                 ],
