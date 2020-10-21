@@ -250,21 +250,14 @@
                     this.canvasContext.fillStyle = 'rgba(255, 255, 255, 1)'
                     this.canvasContext.fillText(position.label, textPosition.x, textPosition.y)
                 }
-
-                if (this.calculateBoundingBoxes) {
-                    const boundingBox = {
-                        id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
-                        idKey: this.positionsIdKey,
-                        x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100) / 2),
-                        y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100) / 2),
-                        width: totalIconWidth + this.canvasContext.measureText(position.label).width,
-                        height: iconHeight,
-                    }
-                    const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
-                    quadrants.forEach(quadrant => {
-                        this.positionBoundingBoxes[quadrant].children.push(boundingBox)
-                    })
-                }
+                this.addBoundingBox({
+                    id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
+                    idKey: this.positionsIdKey,
+                    x: drawPosition.x - (position.icons[0].image.naturalWidth * (this.clampedZoomLevel / 100) / 2),
+                    y: drawPosition.y - (position.icons[0].image.naturalHeight * (this.clampedZoomLevel / 100) / 2),
+                    width: totalIconWidth + this.canvasContext.measureText(position.label).width,
+                    height: iconHeight,
+                })
             },
             drawCircle(position, index) {
                 let coordInView = this.isCoordinateInView(position.coordinates)
@@ -303,21 +296,14 @@
                         }
                     }
                 }
-
-                if (this.calculateBoundingBoxes) {
-                    const boundingBox = {
-                        id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
-                        idKey: this.positionsIdKey,
-                        x: arcBounds.x - this.canvasImagePos.x,
-                        y: arcBounds.y - this.canvasImagePos.y,
-                        width: arcBounds.width,
-                        height: arcBounds.height,
-                    }
-                    const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
-                    quadrants.forEach(quadrant => {
-                        this.positionBoundingBoxes[quadrant].children.push(boundingBox)
-                    })
-                }
+                this.addBoundingBox({
+                    id: this.positionsIdKey === '_index' ? index : position[this.positionsIdKey],
+                    idKey: this.positionsIdKey,
+                    x: arcBounds.x - this.canvasImagePos.x,
+                    y: arcBounds.y - this.canvasImagePos.y,
+                    width: arcBounds.width,
+                    height: arcBounds.height,
+                })
             },
             arcBounds(cx, cy, radius, startAngle, endAngle) {
                 var minX = 1000000;
@@ -367,6 +353,14 @@
                 var x = cx + radius * Math.cos(angle);
                 var y = cy + radius * Math.sin(angle);
                 return ({ x: x, y: y });
+            },
+            addBoundingBox(boundingBox) {
+                if (this.calculateBoundingBoxes) {
+                    const quadrants = this.getQuadrantsForBoundingBox(boundingBox)
+                    quadrants.forEach(quadrant => {
+                        this.positionBoundingBoxes[quadrant].children.push(boundingBox)
+                    })
+                }
             },
             scaleToFit() {
                 let canvasRatio = this.canvasElementWidth / this.canvasElementHeight
