@@ -36,93 +36,84 @@
     </div>
 </template>
 
-<script>
-    import Vue from 'vue'
+<script setup lang="ts">
+import { ref, computed, nextTick } from 'vue'
 
-    export default {
-        name: 'ZoomContainer',
-        props: {
-            minimumZoom: {
-                type: Number,
-                required: true
-            },
-            maximumZoom: {
-                type: Number,
-                required: true
-            },
-            zoomLevel: {
-                type: Number,
-                required: true
-            }
-        },
-        data() {
-            return {
-                showZoomComboBoxDropdown: false,
-                zoomComboBoxDropdownTop: 0
-            }
-        },
-        computed: {
-            comboBoxZoomLevel() {
-                return `${this.zoomLevel}%`
-            },
-            zoomLevelOptions() {
-                let zoomLevels = []
-                let nearestHundred = 100
-                if (this.maximumZoom > 100) {
-                    nearestHundred = Math.floor(this.maximumZoom / 100) * 100;
-                    if (this.maximumZoom > nearestHundred) {
-                        zoomLevels.push(this.maximumZoom)
-                    }
-                    while (nearestHundred > 100) {
-                        zoomLevels.push(nearestHundred)
-                        nearestHundred -= 100
-                    }
-                }
-                zoomLevels.push(nearestHundred)
-                const subHundredZoom = [66.67, 50, 33.33, 25, 12.5]
-                while (nearestHundred > this.minimumZoom) {
-                    if (nearestHundred > 100) {
-                        nearestHundred -= 100
-                    } else if (nearestHundred <= 100) {
-                        nearestHundred = subHundredZoom.find(level => {
-                            return nearestHundred > level
-                        })
-                    }
-                    if (nearestHundred !== undefined) {
-                        zoomLevels.push(nearestHundred)
-                    }
-                }
-                if (this.minimumZoom < zoomLevels[zoomLevels.length - 1]) {
-                    zoomLevels.push(this.minimumZoom)
-                }
+const props = defineProps<{
+    minimumZoom: number
+    maximumZoom: number
+    zoomLevel: number
+}>()
 
-                return zoomLevels
-            },
-            zoomComboBoxDropdownTopPosition() {
-                return {top: `-${this.zoomComboBoxDropdownTop}px`}
-            }
-        },
-        methods: {
-            scaleToFit() {
-                this.$emit('scaleToFit')
-            },
-            updateZoomFromCombobox(evt) {
-                this.zoomTo(evt.target.value.replace(/%/g, ''))
-            },
-            zoomTo(zoom) {
-                this.$emit('zoomTo', zoom)
-                this.showZoomComboBoxDropdown = false
-            },
-            openZoomComboBox() {
-                this.showZoomComboBoxDropdown = true
-                Vue.nextTick(() => {
-                    this.zoomComboBoxDropdownTop = this.$refs.zoomComboBoxDropdown.clientHeight
-                })
-            }
+const emit = defineEmits<{
+    (e: 'scaleToFit'): void
+    (e: 'zoomTo', zoom: number): void
+}>()
+
+const showZoomComboBoxDropdown = ref(false)
+const zoomComboBoxDropdownTop = ref(0)
+const zoomComboBoxDropdown = ref<HTMLElement | null>(null)
+
+const comboBoxZoomLevel = computed(() => `${props.zoomLevel}%`)
+
+const zoomLevelOptions = computed(() => {
+    const zoomLevels: number[] = []
+    let nearestHundred = 100
+    if (props.maximumZoom > 100) {
+        nearestHundred = Math.floor(props.maximumZoom / 100) * 100
+        if (props.maximumZoom > nearestHundred) {
+            zoomLevels.push(props.maximumZoom)
+        }
+        while (nearestHundred > 100) {
+            zoomLevels.push(nearestHundred)
+            nearestHundred -= 100
         }
     }
-</script>
+    zoomLevels.push(nearestHundred)
+    const subHundredZoom = [66.67, 50, 33.33, 25, 12.5]
+    let last = nearestHundred
+    for (const level of subHundredZoom) {
+        if (last > level && level >= props.minimumZoom) {
+            zoomLevels.push(level)
+            last = level
+        }
+    }
+    if (props.minimumZoom < zoomLevels[zoomLevels.length - 1]) {
+        zoomLevels.push(props.minimumZoom)
+    }
+    return zoomLevels
+})
 
+const zoomComboBoxDropdownTopPosition = computed(() => ({
+    top: `-${zoomComboBoxDropdownTop.value}px`
+}))
+
+function scaleToFit() {
+    emit('scaleToFit')
+}
+
+function updateZoomFromCombobox(evt: Event) {
+    const target = evt.target as HTMLInputElement
+    const value = parseFloat(target.value.replace(/%/g, ''))
+    if (!isNaN(value)) {
+        zoomTo(value)
+    }
+}
+
+function zoomTo(zoom: number) {
+    emit('zoomTo', zoom)
+    showZoomComboBoxDropdown.value = false
+}
+
+function openZoomComboBox() {
+    showZoomComboBoxDropdown.value = true
+    nextTick(() => {
+        if (zoomComboBoxDropdown.value) {
+            zoomComboBoxDropdownTop.value = zoomComboBoxDropdown.value.clientHeight
+        }
+    })
+}
+</script>
 
 <style scoped>
     #_eurekaCanvas-ZoomButtonsContainer {

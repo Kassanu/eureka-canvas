@@ -1,63 +1,21 @@
 {
   "name": "eureka-canvas",
-  "version": "0.8.0",
-  "private": false,
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "build-lib": "vue-cli-service build --target lib --name eureka-canvas ./build/plugin.js",
-    "lint": "vue-cli-service lint"
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "core-js": "^2.6.5",
-    "vue": "^2.6.12"
+    "vue": "^3.5.13"
   },
   "devDependencies": {
-    "@vue/cli-plugin-babel": "^3.1.0",
-    "@vue/cli-plugin-eslint": "^3.1.0",
-    "@vue/cli-service": "^3.1.0",
-    "babel-eslint": "^10.0.1",
-    "eslint": "^5.16.0",
-    "eslint-plugin-vue": "^5.0.0",
-    "vue-template-compiler": "^2.6.12"
-  },
-  "eslintConfig": {
-    "root": true,
-    "env": {
-      "node": true
-    },
-    "extends": [
-      "plugin:vue/essential",
-      "eslint:recommended"
-    ],
-    "rules": {},
-    "parserOptions": {
-      "parser": "babel-eslint"
-    }
-  },
-  "postcss": {
-    "plugins": {
-      "autoprefixer": {}
-    }
-  },
-  "browserslist": [
-    "> 1%",
-    "last 2 versions"
-  ],
-  "main": "dist/eureka-canvas.common.js",
-  "files": [
-    "dist",
-    "src"
-  ],
-  "description": "A component for showing points of interest on an image.",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Kassanu/eureka-canvas.git"
-  },
-  "author": "Matt Martucciello",
-  "license": "GPL-3.0",
-  "bugs": {
-    "url": "https://github.com/Kassanu/eureka-canvas/issues"
-  },
-  "homepage": "https://github.com/Kassanu/eureka-canvas#readme"
+    "@vitejs/plugin-vue": "^5.2.3",
+    "@vue/tsconfig": "^0.7.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vue-tsc": "^2.2.8"
+  }
 }
