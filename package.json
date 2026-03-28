@@ -1,21 +1,49 @@
 {
   "name": "eureka-canvas",
-  "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
+  "description": "A Vue 3 component for rendering interactive FFXIV maps.",
   "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepare": "npm run build"
   },
   "dependencies": {
-    "vue": "^3.5.13"
+    "vue": "^3.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22.15.29",
     "@vitejs/plugin-vue": "^5.2.3",
     "@vue/tsconfig": "^0.7.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
     "vue-tsc": "^2.2.8"
-  }
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "canvas",
+    "ffxiv",
+    "interactive-maps"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kassanu/eureka-canvas.git"
+  },
+  "author": "Matt Martucciello",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Kassanu/eureka-canvas/issues"
+  },
+  "homepage": "https://github.com/Kassanu/eureka-canvas#readme"
 }

@@ -1,7 +1,7 @@
 <template>
   <EurekaCanvas
     v-if="!loading"
-    :canvasImage="image"
+    :canvasImage="image!"
     :gridSizeInPixels="50"
     :coordinatesOffset="1"
     :positions="positions"

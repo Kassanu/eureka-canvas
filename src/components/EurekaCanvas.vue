@@ -1,8 +1,8 @@
 <template>
   <div id="eurekaCanvasContainer">
     <canvas id="eurekaCanvas"></canvas>
-    <div v-show="showCoordinates.value" id="eurekaCanvasMouseCoordinates">
-      {{ mouseCoordinates.value?.x ?? '' }}, {{ mouseCoordinates.value?.y ?? '' }}
+    <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">
+      {{ mouseCoordinates.x ?? '' }}, {{ mouseCoordinates.y ?? '' }}
     </div>
     <ZoomContainer
       :minimumZoom="minimumZoom"
@@ -38,6 +38,11 @@ interface Position {
   [key: string]: any
 }
 
+interface Quadrant {
+  box: { x: number; y: number; width: number; height: number }
+  children: any[]
+}
+
 const props = defineProps<{
   canvasImage: HTMLImageElement
   gridSizeInPixels?: number
@@ -63,12 +68,10 @@ const canvasContext = ref<CanvasRenderingContext2D | null>(null)
 const canvasImageWidth = ref(0)
 const canvasImageHeight = ref(0)
 const canvasImagePos = reactive({ x: 0, y: 0 })
-const dragStart = ref<any>(null)
 const dragging = ref(false)
 const pinchZoom = ref(false)
 const pinchDistance = ref(0)
 const lastPinchDistance = ref(0)
-const scaleFactor = ref(1.1)
 const zoomLevel = ref(100)
 const lastDragPosition = reactive({ x: 0, y: 0 })
 const scaledImageWidth = ref(0)
@@ -81,12 +84,12 @@ const zoomFactor = ref(1)
 const lastZoomTime = ref(0)
 const debugBoundingBoxes = ref(false)
 
-const positionBoundingBoxes = reactive({
-  northwest: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] as any[] },
-  northeast: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] as any[] },
-  southeast: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] as any[] },
-  southwest: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] as any[] }
-})
+const positionBoundingBoxes: Record<string, Quadrant> = {
+  northwest: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] },
+  northeast: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] },
+  southeast: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] },
+  southwest: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] }
+}
 
 const scaleMultiplier = computed(() => zoomLevel.value === 100 ? 1 : (zoomLevel.value / 100))
 
@@ -96,18 +99,6 @@ const mouseCoordinates = computed(() => fullPointToCoordinates(fullImageMousePos
 const clampedZoomLevel = computed(() =>
   (((zoomLevel.value - minimumZoom.value) * (100 - 50)) / (maximumZoom.value - minimumZoom.value)) + 50
 )
-const pixelRatio = computed(() => {
-  if (!canvasContext.value) return 1
-  // @ts-ignore
-  let dpr = window.devicePixelRatio || 1
-  // @ts-ignore
-  let bsr = canvasContext.value.webkitBackingStorePixelRatio ||
-    canvasContext.value.mozBackingStorePixelRatio ||
-    canvasContext.value.msBackingStorePixelRatio ||
-    canvasContext.value.oBackingStorePixelRatio ||
-    canvasContext.value.backingStorePixelRatio || 1
-  return dpr / bsr
-})
 
 watch(() => props.positions, () => {
   resetUpBoundingBoxQuadrants()
@@ -139,7 +130,7 @@ function draw() {
   drawPositions()
   if (debugBoundingBoxes.value) {
     Object.keys(positionBoundingBoxes).forEach(key => {
-      positionBoundingBoxes[key].children.forEach(box => {
+      positionBoundingBoxes[key].children.forEach((box: any) => {
         canvasContext.value!.strokeStyle = 'red'
         canvasContext.value!.lineWidth = 1
         canvasContext.value!.strokeRect(box.x, box.y, box.width, box.height)
@@ -428,8 +419,6 @@ function resizeCanvas() {
 }
 
 function clickEvent(evt: MouseEvent | TouchEvent) {
-  // @ts-ignore
-  showZoomComboBoxDropdown = false
   const point = { x: 0, y: 0 }
   if ('touches' in evt && evt.touches.length) {
     point.x = evt.touches[0].clientX
