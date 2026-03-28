@@ -1,26 +1,53 @@
-name: Publish to npm
+name: Tag and publish on version bump
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for version bump
+        id: version
+        run: |
+          CURRENT=$(jq -r '.version' package.json)
+          PREVIOUS=$(git show HEAD~1:package.json | jq -r '.version')
+          echo "current=$CURRENT"
+          echo "previous=$PREVIOUS"
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "bumped=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT" >> $GITHUB_OUTPUT
+          else
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.version.outputs.bumped == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.version.outputs.version }}
+          git push origin v${{ steps.version.outputs.version }}
 
       - uses: actions/setup-node@v4
+        if: steps.version.outputs.bumped == 'true'
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
+        if: steps.version.outputs.bumped == 'true'
         run: npm ci
 
       - name: Publish
+        if: steps.version.outputs.bumped == 'true'
         run: npm publish --access public
