@@ -1,6 +1,6 @@
 {
   "name": "eureka-canvas",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A Vue 3 component for rendering interactive FFXIV maps.",
   "type": "module",
   "main": "dist/index.js",
