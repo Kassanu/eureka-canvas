@@ -13,6 +13,7 @@
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
+    "test": "vitest",
     "prepare": "npm run build"
   },
   "dependencies": {
@@ -21,9 +22,13 @@
   "devDependencies": {
     "@types/node": "^22.15.29",
     "@vitejs/plugin-vue": "^5.2.3",
+    "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.7.0",
+    "jsdom": "^26.0.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
+    "vite-plugin-dts": "^4.5.0",
+    "vitest": "^3.1.0",
     "vue-tsc": "^2.2.8"
   },
   "peerDependencies": {
