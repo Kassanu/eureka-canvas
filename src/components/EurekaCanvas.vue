@@ -399,7 +399,7 @@ function setUpListeners() {
     draw()
   }, false)
   canvasElement.value?.addEventListener('click', clickEvent, false)
-  canvasElement.value?.addEventListener('wheel', wheelEvent, false)
+  canvasElement.value?.addEventListener('wheel', wheelEvent, { passive: false })
   canvasElement.value?.addEventListener('mousedown', mouseDownEvent, false)
   canvasElement.value?.addEventListener('touchstart', mouseDownEvent, false)
   canvasElement.value?.addEventListener('mouseup', mouseUpEvent, false)
@@ -436,6 +436,7 @@ function clickEvent(evt: MouseEvent | TouchEvent) {
 }
 
 function wheelEvent(evt: WheelEvent) {
+  evt.preventDefault()
   const point = { x: evt.offsetX, y: evt.offsetY }
   if (pointIsOnImage(point)) {
     zoomImage(evt.deltaY, point)
