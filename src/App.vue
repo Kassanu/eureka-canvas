@@ -12,23 +12,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import EurekaCanvas from './components/EurekaCanvas.vue'
-
-interface Icon {
-  path: string
-  image: HTMLImageElement | null
-}
-
-interface Coordinates {
-  x: number
-  y: number
-}
-
-interface Position {
-  id: number
-  label: string
-  icons: Icon[]
-  coordinates: Coordinates
-}
+import type { Icon, Position } from './types'
 
 const loading = ref(true)
 const image = ref<HTMLImageElement | null>(null)
