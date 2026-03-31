@@ -1,6 +1,6 @@
 <template>
   <div id="eurekaCanvasContainer">
-    <canvas id="eurekaCanvas"></canvas>
+    <canvas ref="canvasRef" id="eurekaCanvas"></canvas>
     <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">
       {{ mouseCoordinates.x ?? '' }}, {{ mouseCoordinates.y ?? '' }}
     </div>
@@ -15,33 +15,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import ZoomContainer from './ZoomContainer.vue'
-
-interface Icon {
-  path: string
-  image: HTMLImageElement | null
-}
-
-interface Coordinates {
-  x: number
-  y: number
-}
-
-interface Position {
-  id: number
-  label: string
-  icons: Icon[]
-  coordinates: Coordinates
-  drawStyle?: string
-  textPosition?: string
-  [key: string]: any
-}
-
-interface Quadrant {
-  box: { x: number; y: number; width: number; height: number }
-  children: any[]
-}
+import type { Position, Coordinates } from '../types'
+import {
+  relativePointOnImage,
+  scaledPointToFullPoint,
+  fullPointToScaledPoint,
+  fullPointToCoordinates,
+  coordinatesToFullPoint,
+  isCoordinateInView,
+  pointIsOnImage
+} from '../utils/coordinates'
+import { rectBounds, arcBounds, calculateTextWidthAndHeight } from '../utils/geometry'
+import {
+  createQuadrantMap,
+  resetQuadrants,
+  addBoundingBox,
+  findIntersection,
+  type QuadrantMap
+} from '../utils/spatial'
 
 const props = defineProps<{
   canvasImage: HTMLImageElement
@@ -61,6 +54,7 @@ const minimumZoom = computed(() => props.minimumZoom ?? 10)
 const maximumZoom = computed(() => props.maximumZoom ?? 100)
 const positionsIdKey = computed(() => props.positionsIdKey ?? '_index')
 
+const canvasRef = ref<HTMLCanvasElement | null>(null)
 const canvasElement = ref<HTMLCanvasElement | null>(null)
 const canvasElementWidth = ref(0)
 const canvasElementHeight = ref(0)
@@ -79,29 +73,37 @@ const scaledImageHeight = ref(0)
 const showCoordinates = ref(false)
 const lastDragTime = ref(0)
 const canvasMousePosition = reactive({ x: 0, y: 0 })
-const calculateBoundingBoxes = ref(true)
+const shouldRecalcBoundingBoxes = ref(true)
 const zoomFactor = ref(1)
 const lastZoomTime = ref(0)
 const debugBoundingBoxes = ref(false)
 
-const positionBoundingBoxes: Record<string, Quadrant> = {
-  northwest: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] },
-  northeast: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] },
-  southeast: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] },
-  southwest: { box: { x: 0, y: 0, width: 0, height: 0 }, children: [] }
-}
+const positionBoundingBoxes: QuadrantMap = createQuadrantMap()
 
 const scaleMultiplier = computed(() => zoomLevel.value === 100 ? 1 : (zoomLevel.value / 100))
 
-const scaledImageMousePosition = computed(() => relativePointOnImage(canvasMousePosition))
-const fullImageMousePosition = computed(() => scaledPointToFullPoint(scaledImageMousePosition.value))
-const mouseCoordinates = computed(() => fullPointToCoordinates(fullImageMousePosition.value))
+const scaledImageMousePosition = computed(() =>
+  relativePointOnImage(canvasMousePosition, canvasImagePos)
+)
+const fullImageMousePosition = computed(() =>
+  scaledPointToFullPoint(scaledImageMousePosition.value, scaleMultiplier.value)
+)
+const mouseCoordinates = computed(() =>
+  fullPointToCoordinates(fullImageMousePosition.value, gridSizeInPixels.value, coordinatesOffset.value)
+)
 const clampedZoomLevel = computed(() =>
   (((zoomLevel.value - minimumZoom.value) * (100 - 50)) / (maximumZoom.value - minimumZoom.value)) + 50
 )
 
+function getMousePoint(evt: MouseEvent | TouchEvent): Coordinates {
+  if ('touches' in evt && evt.touches.length) {
+    return { x: evt.touches[0].clientX, y: evt.touches[0].clientY }
+  }
+  return { x: (evt as MouseEvent).offsetX, y: (evt as MouseEvent).offsetY }
+}
+
 watch(() => props.positions, () => {
-  resetUpBoundingBoxQuadrants()
+  doResetQuadrants()
   draw()
 })
 
@@ -110,7 +112,8 @@ onMounted(() => {
   canvasImageHeight.value = props.canvasImage.naturalHeight
   scaledImageWidth.value = canvasImageWidth.value
   scaledImageHeight.value = canvasImageHeight.value
-  canvasElement.value = document.getElementById('eurekaCanvas') as HTMLCanvasElement
+  canvasElement.value = canvasRef.value
+  if (!canvasElement.value) return
   resizeCanvas()
   canvasContext.value = canvasElement.value.getContext('2d')
   setUpListeners()
@@ -129,13 +132,13 @@ function draw() {
   )
   drawPositions()
   if (debugBoundingBoxes.value) {
-    Object.keys(positionBoundingBoxes).forEach(key => {
-      positionBoundingBoxes[key].children.forEach((box: any) => {
+    for (const key of Object.keys(positionBoundingBoxes) as (keyof QuadrantMap)[]) {
+      for (const box of positionBoundingBoxes[key].children) {
         canvasContext.value!.strokeStyle = 'red'
         canvasContext.value!.lineWidth = 1
         canvasContext.value!.strokeRect(box.x, box.y, box.width, box.height)
-      })
-    })
+      }
+    }
   }
 }
 
@@ -150,13 +153,19 @@ function drawPositions() {
         break
     }
   })
-  calculateBoundingBoxes.value = false
+  shouldRecalcBoundingBoxes.value = false
 }
 
 function drawDefault(position: Position, index: number) {
-  let coordInView = isCoordinateInView(position.coordinates)
-  let drawPosition = fullPointToScaledPoint(coordinatesToFullPoint(position.coordinates))
-  let offsetDrawPosition = {
+  const coordInView = isCoordinateInView(
+    position.coordinates,
+    canvasElementWidth.value, canvasElementHeight.value,
+    canvasImagePos, scaleMultiplier.value,
+    gridSizeInPixels.value, coordinatesOffset.value
+  )
+  const fullPoint = coordinatesToFullPoint(position.coordinates, gridSizeInPixels.value, coordinatesOffset.value)
+  const drawPosition = fullPointToScaledPoint(fullPoint, scaleMultiplier.value)
+  const offsetDrawPosition = {
     x: drawPosition.x + canvasImagePos.x,
     y: drawPosition.y + canvasImagePos.y,
   }
@@ -194,7 +203,7 @@ function drawDefault(position: Position, index: number) {
   })
 
   const textDrawPosition = { x: offsetDrawPosition.x, y: offsetDrawPosition.y }
-  let fontSize = 18 * (clampedZoomLevel.value / 100)
+  const fontSize = 18 * (clampedZoomLevel.value / 100)
   if (canvasContext.value) {
     canvasContext.value.textBaseline = 'middle'
     canvasContext.value.font = `${fontSize}pt sans-serif`
@@ -203,7 +212,9 @@ function drawDefault(position: Position, index: number) {
     canvasContext.value.miterLimit = 2
     canvasContext.value.fillStyle = 'rgba(255, 255, 255, 1)'
   }
-  let textWidthAndHeight = calculateTextWidthAndHeight(position.label, fontSize)
+  const textWidthAndHeight = canvasContext.value
+    ? calculateTextWidthAndHeight(canvasContext.value, position.label, fontSize)
+    : { width: 0, height: fontSize }
 
   switch (position.textPosition) {
     case 'top':
@@ -236,26 +247,34 @@ function drawDefault(position: Position, index: number) {
   }
 
   const fullBoundingBox = rectBounds(iconsBoundingBox, textBoundingBox)
-  addBoundingBox({
-    id: positionsIdKey.value === '_index' ? index : position[positionsIdKey.value],
-    idKey: positionsIdKey.value,
-    x: fullBoundingBox.x - canvasImagePos.x,
-    y: fullBoundingBox.y - canvasImagePos.y,
-    width: fullBoundingBox.width,
-    height: fullBoundingBox.height,
-  })
+  if (shouldRecalcBoundingBoxes.value) {
+    addBoundingBox(positionBoundingBoxes, {
+      id: positionsIdKey.value === '_index' ? index : position[positionsIdKey.value],
+      idKey: positionsIdKey.value,
+      x: fullBoundingBox.x - canvasImagePos.x,
+      y: fullBoundingBox.y - canvasImagePos.y,
+      width: fullBoundingBox.width,
+      height: fullBoundingBox.height,
+    })
+  }
 }
 
 function drawCircle(position: Position, index: number) {
-  let coordInView = isCoordinateInView(position.coordinates)
-  let drawPosition = fullPointToScaledPoint(coordinatesToFullPoint(position.coordinates))
-  let offsetDrawPosition = {
+  const coordInView = isCoordinateInView(
+    position.coordinates,
+    canvasElementWidth.value, canvasElementHeight.value,
+    canvasImagePos, scaleMultiplier.value,
+    gridSizeInPixels.value, coordinatesOffset.value
+  )
+  const fullPoint = coordinatesToFullPoint(position.coordinates, gridSizeInPixels.value, coordinatesOffset.value)
+  const drawPosition = fullPointToScaledPoint(fullPoint, scaleMultiplier.value)
+  const offsetDrawPosition = {
     x: drawPosition.x + canvasImagePos.x,
     y: drawPosition.y + canvasImagePos.y,
   }
-  let icon = position.icons[0]
-  let radius = (50 * (clampedZoomLevel.value / 100)) * (clampedZoomLevel.value / 100)
-  let arcBoundsObj = arcBounds(offsetDrawPosition.x, offsetDrawPosition.y, radius, 0, 2 * Math.PI)
+  const icon = position.icons[0]
+  const radius = (50 * (clampedZoomLevel.value / 100)) * (clampedZoomLevel.value / 100)
+  const arcBoundsObj = arcBounds(offsetDrawPosition.x, offsetDrawPosition.y, radius, 0, 2 * Math.PI)
 
   if (coordInView && canvasContext.value) {
     canvasContext.value.beginPath()
@@ -278,80 +297,22 @@ function drawCircle(position: Position, index: number) {
       canvasContext.value.drawImage(icon.image, iconPosition.x, iconPosition.y, scaledImageDimensions.width, scaledImageDimensions.height)
     }
   }
-  addBoundingBox({
-    id: positionsIdKey.value === '_index' ? index : position[positionsIdKey.value],
-    idKey: positionsIdKey.value,
-    x: arcBoundsObj.x - canvasImagePos.x,
-    y: arcBoundsObj.y - canvasImagePos.y,
-    width: arcBoundsObj.width,
-    height: arcBoundsObj.height,
-  })
-}
-
-function calculateTextWidthAndHeight(text: string, fontSize: number) {
-  if (!canvasContext.value) return { width: 0, height: fontSize }
-  return {
-    width: canvasContext.value.measureText(text).width,
-    height: fontSize
-  }
-}
-
-function rectBounds(rect1: any, rect2: any) {
-  let xMin = Math.min(rect1.x, rect2.x)
-  let yMin = Math.min(rect1.y, rect2.y)
-  let xMax = Math.max(rect1.x + rect1.width, rect2.x + rect2.width)
-  let yMax = Math.max(rect1.y + rect1.height, rect2.y + rect2.height)
-  return {
-    x: xMin,
-    y: yMin,
-    width: xMax - xMin,
-    height: yMax - yMin
-  }
-}
-
-function arcBounds(cx: number, cy: number, radius: number, startAngle: number, endAngle: number) {
-  let minX = 1000000
-  let minY = 1000000
-  let maxX = -1000000
-  let maxY = -1000000
-  let possibleBoundingPoints = []
-  possibleBoundingPoints.push({ x: cx, y: cy })
-  possibleBoundingPoints.push(arcpoint(cx, cy, radius, startAngle))
-  possibleBoundingPoints.push(arcpoint(cx, cy, radius, endAngle))
-  if (0 >= startAngle && 0 <= endAngle) possibleBoundingPoints.push(arcpoint(cx, cy, radius, 0))
-  let angle = Math.PI / 2
-  if (angle >= startAngle && angle <= endAngle) possibleBoundingPoints.push(arcpoint(cx, cy, radius, angle))
-  angle = Math.PI
-  if (angle >= startAngle && angle <= endAngle) possibleBoundingPoints.push(arcpoint(cx, cy, radius, angle))
-  angle = Math.PI * 3 / 2
-  if (angle >= startAngle && angle <= endAngle) possibleBoundingPoints.push(arcpoint(cx, cy, radius, angle))
-  for (let i = 0; i < possibleBoundingPoints.length; i++) {
-    let pt = possibleBoundingPoints[i]
-    if (pt.x < minX) minX = pt.x
-    if (pt.y < minY) minY = pt.y
-    if (pt.x > maxX) maxX = pt.x
-    if (pt.y > maxY) maxY = pt.y
-  }
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-}
-
-function arcpoint(cx: number, cy: number, radius: number, angle: number) {
-  return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) }
-}
-
-function addBoundingBox(boundingBox: any) {
-  if (calculateBoundingBoxes.value) {
-    const quadrants = getQuadrantsForBoundingBox(boundingBox)
-    quadrants.forEach(quadrant => {
-      positionBoundingBoxes[quadrant].children.push(boundingBox)
+  if (shouldRecalcBoundingBoxes.value) {
+    addBoundingBox(positionBoundingBoxes, {
+      id: positionsIdKey.value === '_index' ? index : position[positionsIdKey.value],
+      idKey: positionsIdKey.value,
+      x: arcBoundsObj.x - canvasImagePos.x,
+      y: arcBoundsObj.y - canvasImagePos.y,
+      width: arcBoundsObj.width,
+      height: arcBoundsObj.height,
     })
   }
 }
 
 function scaleToFit() {
   if (!canvasElement.value) return
-  let canvasRatio = canvasElementWidth.value / canvasElementHeight.value
-  let imageRatio = canvasImageWidth.value / canvasImageHeight.value
+  const canvasRatio = canvasElementWidth.value / canvasElementHeight.value
+  const imageRatio = canvasImageWidth.value / canvasImageHeight.value
   if (canvasRatio > imageRatio) {
     scaledImageWidth.value = canvasImageWidth.value * (canvasElementHeight.value / canvasImageHeight.value)
     scaledImageHeight.value = canvasElementHeight.value
@@ -362,42 +323,26 @@ function scaleToFit() {
   zoomLevel.value = parseFloat(((scaledImageWidth.value / canvasImageWidth.value) * 100).toFixed(2))
   canvasImagePos.x = (canvasElement.value.width / 2) - (scaledImageWidth.value / 2)
   canvasImagePos.y = (canvasElement.value.height / 2) - (scaledImageHeight.value / 2)
-  resetUpBoundingBoxQuadrants()
+  doResetQuadrants()
   draw()
 }
 
-function resetUpBoundingBoxQuadrants() {
-  for (const [key, quadrant] of Object.entries(positionBoundingBoxes)) {
-    quadrant.children.length = 0
-    quadrant.box.width = scaledImageWidth.value / 2
-    quadrant.box.height = scaledImageHeight.value / 2
-    switch (key) {
-      case 'northwest':
-        quadrant.box.x = 0
-        quadrant.box.y = 0
-        break
-      case 'northeast':
-        quadrant.box.x = quadrant.box.width
-        quadrant.box.y = 0
-        break
-      case 'southeast':
-        quadrant.box.x = quadrant.box.width
-        quadrant.box.y = quadrant.box.height
-        break
-      case 'southwest':
-        quadrant.box.x = 0
-        quadrant.box.y = quadrant.box.height
-        break
-    }
-  }
-  calculateBoundingBoxes.value = true
+function doResetQuadrants() {
+  resetQuadrants(positionBoundingBoxes, scaledImageWidth.value, scaledImageHeight.value)
+  shouldRecalcBoundingBoxes.value = true
+}
+
+function onResize() {
+  resizeCanvas()
+  draw()
+}
+
+function onDragOver(e: Event) {
+  e.preventDefault()
 }
 
 function setUpListeners() {
-  window.addEventListener('resize', () => {
-    resizeCanvas()
-    draw()
-  }, false)
+  window.addEventListener('resize', onResize, false)
   canvasElement.value?.addEventListener('click', clickEvent, false)
   canvasElement.value?.addEventListener('wheel', wheelEvent, { passive: false })
   canvasElement.value?.addEventListener('mousedown', mouseDownEvent, false)
@@ -407,8 +352,26 @@ function setUpListeners() {
   canvasElement.value?.addEventListener('mousemove', mouseMoveEvent, false)
   canvasElement.value?.addEventListener('touchmove', mouseMoveEvent, false)
   canvasElement.value?.addEventListener('mouseleave', mouseLeaveEvent, false)
-  document.addEventListener('dragover', (e) => e.preventDefault(), true)
+  document.addEventListener('dragover', onDragOver, true)
 }
+
+function tearDownListeners() {
+  window.removeEventListener('resize', onResize, false)
+  canvasElement.value?.removeEventListener('click', clickEvent, false)
+  canvasElement.value?.removeEventListener('wheel', wheelEvent)
+  canvasElement.value?.removeEventListener('mousedown', mouseDownEvent, false)
+  canvasElement.value?.removeEventListener('touchstart', mouseDownEvent, false)
+  canvasElement.value?.removeEventListener('mouseup', mouseUpEvent, false)
+  canvasElement.value?.removeEventListener('touchend', mouseUpEvent, false)
+  canvasElement.value?.removeEventListener('mousemove', mouseMoveEvent, false)
+  canvasElement.value?.removeEventListener('touchmove', mouseMoveEvent, false)
+  canvasElement.value?.removeEventListener('mouseleave', mouseLeaveEvent, false)
+  document.removeEventListener('dragover', onDragOver, true)
+}
+
+onUnmounted(() => {
+  tearDownListeners()
+})
 
 function resizeCanvas() {
   if (!canvasElement.value) return
@@ -419,18 +382,11 @@ function resizeCanvas() {
 }
 
 function clickEvent(evt: MouseEvent | TouchEvent) {
-  const point = { x: 0, y: 0 }
-  if ('touches' in evt && evt.touches.length) {
-    point.x = evt.touches[0].clientX
-    point.y = evt.touches[0].clientY
-  } else if ('offsetX' in evt) {
-    // @ts-ignore
-    point.x = evt.offsetX
-    // @ts-ignore
-    point.y = evt.offsetY
-  }
+  const point = getMousePoint(evt)
+  const relPoint = relativePointOnImage(point, canvasImagePos)
+  const fullPoint = scaledPointToFullPoint(relPoint, scaleMultiplier.value)
   emit('click', {
-    coordinates: fullPointToCoordinates(scaledPointToFullPoint(relativePointOnImage(point)))
+    coordinates: fullPointToCoordinates(fullPoint, gridSizeInPixels.value, coordinatesOffset.value)
   })
   checkIntersections(point)
 }
@@ -438,27 +394,24 @@ function clickEvent(evt: MouseEvent | TouchEvent) {
 function wheelEvent(evt: WheelEvent) {
   evt.preventDefault()
   const point = { x: evt.offsetX, y: evt.offsetY }
-  if (pointIsOnImage(point)) {
+  if (pointIsOnImage(point, canvasImagePos, scaledImageWidth.value, scaledImageHeight.value)) {
     zoomImage(evt.deltaY, point)
   }
 }
 
 function dragEvent(evt: MouseEvent | TouchEvent) {
   const moved = { x: 0, y: 0 }
-  if (evt.type === "touchmove" && 'touches' in evt && evt.touches.length) {
+  if ('touches' in evt && evt.touches.length) {
     moved.x = evt.touches[0].clientX - lastDragPosition.x
     moved.y = evt.touches[0].clientY - lastDragPosition.y
     lastDragPosition.x = evt.touches[0].clientX
     lastDragPosition.y = evt.touches[0].clientY
-  } else if ('offsetX' in evt) {
-    // @ts-ignore
-    moved.x = evt.offsetX - lastDragPosition.x
-    // @ts-ignore
-    moved.y = evt.offsetY - lastDragPosition.y
-    // @ts-ignore
-    lastDragPosition.x = evt.offsetX
-    // @ts-ignore
-    lastDragPosition.y = evt.offsetY
+  } else {
+    const mouseEvt = evt as MouseEvent
+    moved.x = mouseEvt.offsetX - lastDragPosition.x
+    moved.y = mouseEvt.offsetY - lastDragPosition.y
+    lastDragPosition.x = mouseEvt.offsetX
+    lastDragPosition.y = mouseEvt.offsetY
   }
   const now = Date.now()
   const lastDragDelta = now - lastDragTime.value
@@ -501,18 +454,17 @@ function pinchEvent(evt: TouchEvent) {
 function mouseDownEvent(evt: MouseEvent | TouchEvent) {
   dragging.value = true
   document.documentElement.style.cursor = 'move'
-  if (evt.type === "touchstart" && 'touches' in evt && evt.touches.length) {
+  if ('touches' in evt && evt.touches.length) {
     lastDragPosition.x = evt.touches[0].clientX
     lastDragPosition.y = evt.touches[0].clientY
     if (evt.touches.length === 2) {
       dragging.value = false
       pinchZoom.value = true
     }
-  } else if ('offsetX' in evt) {
-    // @ts-ignore
-    lastDragPosition.x = evt.offsetX
-    // @ts-ignore
-    lastDragPosition.y = evt.offsetY
+  } else {
+    const mouseEvt = evt as MouseEvent
+    lastDragPosition.x = mouseEvt.offsetX
+    lastDragPosition.y = mouseEvt.offsetY
   }
 }
 
@@ -524,16 +476,10 @@ function mouseUpEvent() {
 
 function mouseMoveEvent(evt: MouseEvent | TouchEvent) {
   evt.preventDefault()
-  if (evt.type === "touchmove" && 'touches' in evt && evt.touches.length) {
-    canvasMousePosition.x = evt.touches[0].clientX
-    canvasMousePosition.y = evt.touches[0].clientY
-  } else if ('offsetX' in evt) {
-    // @ts-ignore
-    canvasMousePosition.x = evt.offsetX
-    // @ts-ignore
-    canvasMousePosition.y = evt.offsetY
-  }
-  toggleCoordinates(pointIsOnImage(canvasMousePosition))
+  const point = getMousePoint(evt)
+  canvasMousePosition.x = point.x
+  canvasMousePosition.y = point.y
+  toggleCoordinates(pointIsOnImage(canvasMousePosition, canvasImagePos, scaledImageWidth.value, scaledImageHeight.value))
   if (dragging.value) dragEvent(evt)
   if (pinchZoom.value) pinchEvent(evt as TouchEvent)
 }
@@ -542,93 +488,26 @@ function mouseLeaveEvent() {
   toggleCoordinates(false)
 }
 
-function checkIntersections(point: { x: number, y: number }) {
-  if (pointIsOnImage(point)) {
-    const relPoint = relativePointOnImage(point)
-    const quadrant = getRelativePointQuadrant(relPoint)
-    if (!quadrant) return
-    const hit = positionBoundingBoxes[quadrant].children.slice().reverse().find(box =>
-      relPoint.x >= box.x && relPoint.x <= (box.x + box.width) && relPoint.y >= box.y && relPoint.y <= (box.y + box.height)
-    )
-    if (hit !== undefined) {
-      if (hit.idKey == '_index') {
-        emit('clickedElement', props.positions[hit.id])
-      } else {
-        emit('clickedElement', props.positions.find(position => position[hit.idKey] === hit.id))
-      }
+function checkIntersections(point: Coordinates) {
+  if (!pointIsOnImage(point, canvasImagePos, scaledImageWidth.value, scaledImageHeight.value)) return
+  const relPoint = relativePointOnImage(point, canvasImagePos)
+  const hit = findIntersection(positionBoundingBoxes, relPoint)
+  if (hit) {
+    if (hit.idKey === '_index') {
+      emit('clickedElement', props.positions[hit.id as number])
+    } else {
+      emit('clickedElement', props.positions.find(position => position[hit.idKey] === hit.id))
     }
   }
 }
 
-function getRelativePointQuadrant(point: { x: number, y: number }) {
-  return Object.keys(positionBoundingBoxes).find((key) => {
-    const box = positionBoundingBoxes[key].box
-    return point.x >= box.x && point.x <= (box.x + box.width) && point.y >= box.y && point.y <= (box.y + box.height)
-  })
-}
-
-function getQuadrantsForBoundingBox(box: any) {
-  return Object.keys(positionBoundingBoxes).filter((key) => {
-    const quadBox = positionBoundingBoxes[key].box
-    return box.x < (quadBox.x + quadBox.width) && (box.x + box.width) > quadBox.x && box.y < (quadBox.y + quadBox.height) && (box.y + box.height) > quadBox.y
-  })
-}
-
 function toggleCoordinates(show: boolean) {
-  if (showCoordinates.value != show) {
+  if (showCoordinates.value !== show) {
     showCoordinates.value = show
   }
 }
 
-function pointIsOnImage(point: { x: number, y: number }) {
-  let rect = {
-    top: canvasImagePos.y,
-    right: (canvasImagePos.x + scaledImageWidth.value),
-    bottom: (canvasImagePos.y + scaledImageHeight.value),
-    left: canvasImagePos.x
-  }
-  return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
-}
-
-function relativePointOnImage(point: { x: number, y: number }) {
-  return { x: point.x - canvasImagePos.x, y: point.y - canvasImagePos.y }
-}
-
-function scaledPointToFullPoint(scaledPoint: { x: number, y: number }) {
-  return { x: scaledPoint.x / scaleMultiplier.value, y: scaledPoint.y / scaleMultiplier.value }
-}
-
-function fullPointToScaledPoint(fullPoint: { x: number, y: number }) {
-  return { x: fullPoint.x * scaleMultiplier.value, y: fullPoint.y * scaleMultiplier.value }
-}
-
-function fullPointToCoordinates(fullPoint: { x: number, y: number }) {
-  return {
-    x: (Math.round((fullPoint.x / gridSizeInPixels.value) * 10) / 10) + coordinatesOffset.value,
-    y: (Math.round((fullPoint.y / gridSizeInPixels.value) * 10) / 10) + coordinatesOffset.value
-  }
-}
-
-function coordinatesToFullPoint(coordinates: { x: number, y: number }) {
-  return {
-    x: (coordinates.x - coordinatesOffset.value) * gridSizeInPixels.value,
-    y: (coordinates.y - coordinatesOffset.value) * gridSizeInPixels.value
-  }
-}
-
-function isCoordinateInView(coordinates: { x: number, y: number }) {
-  const position = fullPointToScaledPoint(coordinatesToFullPoint(coordinates))
-  const shiftedPosition = {
-    x: position.x + canvasImagePos.x,
-    y: position.y + canvasImagePos.y
-  }
-  if (shiftedPosition.y < 0 || shiftedPosition.y > canvasElementHeight.value || shiftedPosition.x < 0 || shiftedPosition.x > canvasElementWidth.value) {
-    return false
-  }
-  return true
-}
-
-function zoomImage(delta: number, point: { x: number, y: number }) {
+function zoomImage(delta: number, point: Coordinates) {
   const oldZoom = zoomLevel.value
   const now = Date.now()
   if (!pinchZoom.value && now - lastZoomTime.value < 100) {
@@ -653,31 +532,33 @@ function zoomImage(delta: number, point: { x: number, y: number }) {
   }
   if (oldZoom !== zoomLevel.value) {
     const zoomChange = ((zoomLevel.value - oldZoom) / Math.abs(oldZoom))
-    let oldRelativePoint = relativePointOnImage(point)
-    let newRelativePoint = { x: oldRelativePoint.x + (oldRelativePoint.x * (Math.sign(delta) * zoomChange)), y: oldRelativePoint.y + (oldRelativePoint.y * (Math.sign(delta) * zoomChange)) }
-    let newScaledImageWidth = canvasImageWidth.value * (zoomLevel.value / 100)
-    let newScaledImageHeight = canvasImageHeight.value * (zoomLevel.value / 100)
-    let distance = { x: newRelativePoint.x - oldRelativePoint.x, y: newRelativePoint.y - oldRelativePoint.y }
+    const oldRelativePoint = relativePointOnImage(point, canvasImagePos)
+    const newRelativePoint = {
+      x: oldRelativePoint.x + (oldRelativePoint.x * (Math.sign(delta) * zoomChange)),
+      y: oldRelativePoint.y + (oldRelativePoint.y * (Math.sign(delta) * zoomChange))
+    }
+    const distance = {
+      x: newRelativePoint.x - oldRelativePoint.x,
+      y: newRelativePoint.y - oldRelativePoint.y
+    }
     canvasImagePos.x -= Math.sign(delta) * distance.x
     canvasImagePos.y -= Math.sign(delta) * distance.y
-    scaledImageWidth.value = newScaledImageWidth
-    scaledImageHeight.value = newScaledImageHeight
-    resetUpBoundingBoxQuadrants()
+    scaledImageWidth.value = canvasImageWidth.value * (zoomLevel.value / 100)
+    scaledImageHeight.value = canvasImageHeight.value * (zoomLevel.value / 100)
+    doResetQuadrants()
     draw()
   }
 }
 
 function zoomTo(level: number) {
   zoomLevel.value = level
-  let newScaledImageWidth = canvasImageWidth.value * (zoomLevel.value / 100)
-  let newScaledImageHeight = canvasImageHeight.value * (zoomLevel.value / 100)
-  scaledImageWidth.value = newScaledImageWidth
-  scaledImageHeight.value = newScaledImageHeight
+  scaledImageWidth.value = canvasImageWidth.value * (zoomLevel.value / 100)
+  scaledImageHeight.value = canvasImageHeight.value * (zoomLevel.value / 100)
   if (canvasElement.value) {
     canvasImagePos.x = (canvasElement.value.width / 2) - (scaledImageWidth.value / 2)
     canvasImagePos.y = (canvasElement.value.height / 2) - (scaledImageHeight.value / 2)
   }
-  resetUpBoundingBoxQuadrants()
+  doResetQuadrants()
   draw()
 }
 </script>
