@@ -23,6 +23,7 @@ export interface UseCanvasInputOptions {
   onResize: () => void
   onClick: (coordinates: Coordinates) => void
   onClickElement: (point: Coordinates) => void
+  onMouseMove?: (point: Coordinates) => void
 }
 
 export function useCanvasInput(options: UseCanvasInputOptions) {
@@ -31,7 +32,7 @@ export function useCanvasInput(options: UseCanvasInputOptions) {
     scaleMultiplier, scaledImageWidth, scaledImageHeight,
     gridSizeInPixels, coordinatesOffset,
     zoomImage, dragging, startDrag, stopDrag, dragEvent,
-    onResize, onClick, onClickElement
+    onResize, onClick, onClickElement, onMouseMove
   } = options
 
   const canvasMousePosition = reactive({ x: 0, y: 0 })
@@ -110,7 +111,9 @@ export function useCanvasInput(options: UseCanvasInputOptions) {
     const point = getMousePoint(evt)
     canvasMousePosition.x = point.x
     canvasMousePosition.y = point.y
-    toggleCoordinates(pointIsOnImage(canvasMousePosition, canvasImagePos, scaledImageWidth.value, scaledImageHeight.value))
+    const onImage = pointIsOnImage(canvasMousePosition, canvasImagePos, scaledImageWidth.value, scaledImageHeight.value)
+    toggleCoordinates(onImage)
+    if (onMouseMove) onMouseMove({ x: point.x, y: point.y })
     if (dragging.value) dragEvent(evt)
     if (pinchZoom.value) pinchEvent(evt as TouchEvent)
   }

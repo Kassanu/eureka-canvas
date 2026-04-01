@@ -26,13 +26,7 @@ import {
   relativePointOnImage
 } from '../utils/coordinates'
 import { rectBounds, arcBounds, calculateTextWidthAndHeight } from '../utils/geometry'
-import {
-  createQuadrantMap,
-  resetQuadrants,
-  addBoundingBox,
-  findIntersection,
-  type QuadrantMap
-} from '../utils/spatial'
+import { Quadtree } from '../utils/spatial'
 import { useCanvasZoom } from '../composables/useCanvasZoom'
 import { useCanvasPan } from '../composables/useCanvasPan'
 import { useCanvasInput } from '../composables/useCanvasInput'
@@ -47,7 +41,7 @@ const props = defineProps<{
   positionsIdKey?: string
 }>()
 
-const emit = defineEmits(['click', 'clickedElement'])
+const emit = defineEmits(['click', 'clickedElement', 'hover', 'zoomChange', 'panChange', 'viewportChange'])
 
 const gridSizeInPixels = computed(() => props.gridSizeInPixels ?? 100)
 const coordinatesOffset = computed(() => props.coordinatesOffset ?? 0)
@@ -66,7 +60,26 @@ const canvasImagePos = reactive({ x: 0, y: 0 })
 const shouldRecalcBoundingBoxes = ref(true)
 const debugBoundingBoxes = ref(false)
 
-const positionBoundingBoxes: QuadrantMap = createQuadrantMap()
+let positionBoundingBoxes = new Quadtree({ x: 0, y: 0, width: 0, height: 0 })
+const lastHoveredId = ref<number | string | null>(null)
+
+function emitViewportChange() {
+  emit('viewportChange', {
+    bounds: {
+      x: -canvasImagePos.x / scaleMultiplier.value,
+      y: -canvasImagePos.y / scaleMultiplier.value,
+      width: canvasElementWidth.value / scaleMultiplier.value,
+      height: canvasElementHeight.value / scaleMultiplier.value,
+    },
+    zoom: zoomLevel.value
+  })
+}
+
+let viewportChangeTimer: ReturnType<typeof setTimeout> | null = null
+function debouncedViewportChange() {
+  if (viewportChangeTimer) clearTimeout(viewportChangeTimer)
+  viewportChangeTimer = setTimeout(emitViewportChange, 150)
+}
 
 const {
   zoomLevel, scaledImageWidth, scaledImageHeight,
@@ -77,14 +90,23 @@ const {
   canvasElementWidth, canvasElementHeight,
   canvasImagePos, canvasElement,
   minimumZoom, maximumZoom,
-  onAfterZoom: () => { doResetQuadrants(); draw() }
+  onAfterZoom: () => {
+    resetSpatialIndex()
+    draw()
+    emit('zoomChange', { level: zoomLevel.value, scale: scaleMultiplier.value })
+    debouncedViewportChange()
+  }
 })
 
 const { dragging, startDrag, stopDrag, dragEvent } = useCanvasPan({
   canvasImagePos,
   canvasElementWidth, canvasElementHeight,
   scaledImageWidth, scaledImageHeight,
-  onAfterPan: draw
+  onAfterPan: () => {
+    draw()
+    emit('panChange', { x: canvasImagePos.x, y: canvasImagePos.y })
+    debouncedViewportChange()
+  }
 })
 
 const { showCoordinates, mouseCoordinates, setUpListeners } = useCanvasInput({
@@ -94,11 +116,12 @@ const { showCoordinates, mouseCoordinates, setUpListeners } = useCanvasInput({
   zoomImage, dragging, startDrag, stopDrag, dragEvent,
   onResize: () => { resizeCanvas(); draw() },
   onClick: (coordinates) => emit('click', { coordinates }),
-  onClickElement: checkIntersections
+  onClickElement: checkIntersections,
+  onMouseMove: handleMouseMove
 })
 
 watch(() => props.positions, () => {
-  doResetQuadrants()
+  resetSpatialIndex()
   draw()
 })
 
@@ -123,20 +146,51 @@ function resizeCanvas() {
   canvasElement.value.height = canvasElement.value.offsetHeight
 }
 
-function doResetQuadrants() {
-  resetQuadrants(positionBoundingBoxes, scaledImageWidth.value, scaledImageHeight.value)
+function resetSpatialIndex() {
+  positionBoundingBoxes = new Quadtree({
+    x: 0, y: 0,
+    width: scaledImageWidth.value,
+    height: scaledImageHeight.value
+  })
   shouldRecalcBoundingBoxes.value = true
 }
 
 function checkIntersections(point: Coordinates) {
   if (!pointIsOnImage(point, canvasImagePos, scaledImageWidth.value, scaledImageHeight.value)) return
   const relPoint = relativePointOnImage(point, canvasImagePos)
-  const hit = findIntersection(positionBoundingBoxes, relPoint)
+  const hit = positionBoundingBoxes.queryPoint(relPoint)
   if (hit) {
     if (hit.idKey === '_index') {
       emit('clickedElement', props.positions[hit.id as number])
     } else {
       emit('clickedElement', props.positions.find(position => position[hit.idKey] === hit.id))
+    }
+  }
+}
+
+function handleMouseMove(point: Coordinates) {
+  if (!pointIsOnImage(point, canvasImagePos, scaledImageWidth.value, scaledImageHeight.value)) {
+    if (lastHoveredId.value !== null) {
+      lastHoveredId.value = null
+      emit('hover', null)
+      if (canvasElement.value) canvasElement.value.style.cursor = ''
+    }
+    return
+  }
+  const relPoint = relativePointOnImage(point, canvasImagePos)
+  const hit = positionBoundingBoxes.queryPoint(relPoint)
+  const hitId = hit ? hit.id : null
+  if (hitId !== lastHoveredId.value) {
+    lastHoveredId.value = hitId
+    if (hit) {
+      const position = hit.idKey === '_index'
+        ? props.positions[hit.id as number]
+        : props.positions.find(p => p[hit.idKey] === hit.id)
+      emit('hover', position ?? null)
+      if (canvasElement.value) canvasElement.value.style.cursor = 'pointer'
+    } else {
+      emit('hover', null)
+      if (canvasElement.value) canvasElement.value.style.cursor = ''
     }
   }
 }
@@ -153,12 +207,11 @@ function draw() {
   )
   drawPositions()
   if (debugBoundingBoxes.value) {
-    for (const key of Object.keys(positionBoundingBoxes) as (keyof QuadrantMap)[]) {
-      for (const box of positionBoundingBoxes[key].children) {
-        canvasContext.value!.strokeStyle = 'red'
-        canvasContext.value!.lineWidth = 1
-        canvasContext.value!.strokeRect(box.x, box.y, box.width, box.height)
-      }
+    const allBoxes = positionBoundingBoxes.queryArea({ x: 0, y: 0, width: scaledImageWidth.value, height: scaledImageHeight.value })
+    for (const box of allBoxes) {
+      canvasContext.value!.strokeStyle = 'red'
+      canvasContext.value!.lineWidth = 1
+      canvasContext.value!.strokeRect(box.x, box.y, box.width, box.height)
     }
   }
 }
@@ -269,7 +322,7 @@ function drawDefault(position: Position, index: number) {
 
   const fullBoundingBox = rectBounds(iconsBoundingBox, textBoundingBox)
   if (shouldRecalcBoundingBoxes.value) {
-    addBoundingBox(positionBoundingBoxes, {
+    positionBoundingBoxes.insert({
       id: positionsIdKey.value === '_index' ? index : position[positionsIdKey.value],
       idKey: positionsIdKey.value,
       x: fullBoundingBox.x - canvasImagePos.x,
@@ -319,7 +372,7 @@ function drawCircle(position: Position, index: number) {
     }
   }
   if (shouldRecalcBoundingBoxes.value) {
-    addBoundingBox(positionBoundingBoxes, {
+    positionBoundingBoxes.insert({
       id: positionsIdKey.value === '_index' ? index : position[positionsIdKey.value],
       idKey: positionsIdKey.value,
       x: arcBoundsObj.x - canvasImagePos.x,
