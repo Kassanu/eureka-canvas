@@ -47,11 +47,13 @@ function loadPositions(): Position[] {
     icons: [],
     coordinates: { x: 1, y: 1 }
   }
-  for (let index = 0; index < 250; index++) {
+  for (let index = 0; index < 200; index++) {
+    const isCircle = index % 5 === 0
     positionsArr.push({
       ...baseObj,
       id: index,
       label: `Test-${index + 1}`,
+      drawStyle: isCircle ? 'circle' : 'default',
       coordinates: {
         x: Math.floor(Math.random() * (75 - 1 + 1)) + 1,
         y: Math.floor(Math.random() * (75 - 1 + 1)) + 1
