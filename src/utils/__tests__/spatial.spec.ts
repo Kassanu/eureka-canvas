@@ -126,3 +126,37 @@ describe('deep tree — max depth', () => {
     expect(hit!.id).toBe(19)
   })
 })
+
+describe('queryPoint — hitTest narrow phase', () => {
+  it('skips item when hitTest returns false', () => {
+    const tree = new Quadtree(bounds)
+    tree.insert({
+      id: 1, idKey: '_index', x: 10, y: 10, width: 30, height: 30,
+      hitTest: () => false
+    })
+    expect(tree.queryPoint({ x: 20, y: 20 })).toBeUndefined()
+  })
+
+  it('returns item when hitTest returns true', () => {
+    const tree = new Quadtree(bounds)
+    tree.insert({
+      id: 1, idKey: '_index', x: 10, y: 10, width: 30, height: 30,
+      hitTest: () => true
+    })
+    const hit = tree.queryPoint({ x: 20, y: 20 })
+    expect(hit).toBeDefined()
+    expect(hit!.id).toBe(1)
+  })
+
+  it('falls through to earlier item when topmost hitTest fails', () => {
+    const tree = new Quadtree(bounds)
+    tree.insert({ id: 1, idKey: '_index', x: 10, y: 10, width: 30, height: 30 })
+    tree.insert({
+      id: 2, idKey: '_index', x: 10, y: 10, width: 30, height: 30,
+      hitTest: () => false
+    })
+    const hit = tree.queryPoint({ x: 20, y: 20 })
+    expect(hit).toBeDefined()
+    expect(hit!.id).toBe(1)
+  })
+})

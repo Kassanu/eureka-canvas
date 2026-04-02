@@ -58,7 +58,11 @@ export interface DrawParams {
   resolvedIcons: HTMLImageElement[]
 }
 
-export type RendererFunction = (params: DrawParams) => BoundingBox
+export interface RendererResult extends BoundingBox {
+  hitTest?: (point: Coordinates) => boolean
+}
+
+export type RendererFunction = (params: DrawParams) => RendererResult
 
 export interface Icon {
   path: string
