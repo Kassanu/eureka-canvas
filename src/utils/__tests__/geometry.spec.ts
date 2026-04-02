@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rectBounds, arcBounds, arcpoint } from '../geometry'
+import { rectBounds, arcBounds, arcpoint, polygonBounds, pointInPolygon, polygonCentroid } from '../geometry'
 
 describe('rectBounds', () => {
   it('returns union of two non-overlapping rectangles', () => {
@@ -76,5 +76,61 @@ describe('arcBounds', () => {
     expect(result.y).toBeLessThanOrEqual(100)
     expect(result.x + result.width).toBeGreaterThanOrEqual(100)
     expect(result.y + result.height).toBeGreaterThanOrEqual(100)
+  })
+})
+
+describe('polygonBounds', () => {
+  it('returns bounding box of a convex polygon', () => {
+    const result = polygonBounds([
+      { x: 10, y: 20 }, { x: 50, y: 10 }, { x: 60, y: 40 }, { x: 20, y: 50 }
+    ])
+    expect(result).toEqual({ x: 10, y: 10, width: 50, height: 40 })
+  })
+
+  it('handles a single point', () => {
+    const result = polygonBounds([{ x: 5, y: 5 }])
+    expect(result).toEqual({ x: 5, y: 5, width: 0, height: 0 })
+  })
+
+  it('handles collinear vertices', () => {
+    const result = polygonBounds([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }])
+    expect(result).toEqual({ x: 0, y: 0, width: 20, height: 0 })
+  })
+})
+
+describe('pointInPolygon', () => {
+  const square = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]
+
+  it('returns true for point inside', () => {
+    expect(pointInPolygon({ x: 5, y: 5 }, square)).toBe(true)
+  })
+
+  it('returns false for point outside', () => {
+    expect(pointInPolygon({ x: 15, y: 5 }, square)).toBe(false)
+  })
+
+  it('handles concave polygon', () => {
+    const concave = [
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 },
+      { x: 5, y: 5 }, { x: 0, y: 10 }
+    ]
+    // Point in the concavity — outside the polygon
+    expect(pointInPolygon({ x: 5, y: 8 }, concave)).toBe(false)
+    // Point inside the polygon
+    expect(pointInPolygon({ x: 2, y: 3 }, concave)).toBe(true)
+  })
+})
+
+describe('polygonCentroid', () => {
+  it('returns centroid of a rectangle', () => {
+    const result = polygonCentroid([
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }
+    ])
+    expect(result).toEqual({ x: 5, y: 5 })
+  })
+
+  it('returns centroid of a triangle', () => {
+    const result = polygonCentroid([{ x: 0, y: 0 }, { x: 6, y: 0 }, { x: 3, y: 9 }])
+    expect(result).toEqual({ x: 3, y: 3 })
   })
 })

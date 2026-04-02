@@ -52,6 +52,43 @@ export function arcpoint(cx: number, cy: number, radius: number, angle: number):
   return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) }
 }
 
+export function polygonBounds(vertices: Coordinates[]): BoundingBox {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const v of vertices) {
+    if (v.x < minX) minX = v.x
+    if (v.y < minY) minY = v.y
+    if (v.x > maxX) maxX = v.x
+    if (v.y > maxY) maxY = v.y
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+}
+
+export function pointInPolygon(point: Coordinates, vertices: Coordinates[]): boolean {
+  let inside = false
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const xi = vertices[i].x, yi = vertices[i].y
+    const xj = vertices[j].x, yj = vertices[j].y
+    if ((yi > point.y) !== (yj > point.y) &&
+        point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+export function polygonCentroid(vertices: Coordinates[]): Coordinates {
+  let sumX = 0
+  let sumY = 0
+  for (const v of vertices) {
+    sumX += v.x
+    sumY += v.y
+  }
+  return { x: sumX / vertices.length, y: sumY / vertices.length }
+}
+
 export function calculateTextWidthAndHeight(
   ctx: CanvasRenderingContext2D,
   text: string,
