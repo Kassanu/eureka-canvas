@@ -1,36 +1,36 @@
 <template>
-    <div id="_eurekaCanvas-ZoomButtonsContainer">
+    <div class="eureka-canvas-zoom-buttons">
         <div class="iconContainer" @click="zoomTo(maximumZoom)" title="Maximize">
-            <svg version="1.1" id="_eurekaCanvas-maximize" xmlns="http://www.w3.org/2000/svg"
+            <svg version="1.1" class="eureka-canvas-maximize" xmlns="http://www.w3.org/2000/svg"
                 xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 105 105"
                 style="enable-background:new 0 0 105 105;" xml:space="preserve">
-                <rect id="XMLID_1_" x="2.5" y="2.5" style="fill:none;stroke-miterlimit:10;" width="100"
+                <rect x="2.5" y="2.5" style="fill:none;stroke-miterlimit:10;" width="100"
                     height="100" />
             </svg>
         </div>
         <div class="iconContainer" @click="scaleToFit" title="Scale to fit">
-            <svg version="1.1" id="_eurekaCanvas-fittoscreen" xmlns="http://www.w3.org/2000/svg"
+            <svg version="1.1" class="eureka-canvas-fit-to-screen" xmlns="http://www.w3.org/2000/svg"
                 xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 105 105"
                 style="enable-background:new 0 0 105 105;" xml:space="preserve">
-                <rect id="XMLID_1_" x="2.5" y="2.5" style="display:none;fill:none;stroke-miterlimit:10;" width="100"
+                <rect x="2.5" y="2.5" style="display:none;fill:none;stroke-miterlimit:10;" width="100"
                     height="100" />
-                <rect id="XMLID_15_" x="-20" y="70.5" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                <rect x="-20" y="70.5" style="fill:none;stroke-miterlimit:10;" width="52.5"
                     height="52.5" />
-                <rect id="XMLID_16_" x="72.5" y="70.5" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                <rect x="72.5" y="70.5" style="fill:none;stroke-miterlimit:10;" width="52.5"
                     height="52.5" />
-                <rect id="XMLID_17_" x="70.5" y="-18" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                <rect x="70.5" y="-18" style="fill:none;stroke-miterlimit:10;" width="52.5"
                     height="52.5" />
-                <rect id="XMLID_18_" x="-18" y="-18" style="fill:none;stroke-miterlimit:10;" width="52.5"
+                <rect x="-18" y="-18" style="fill:none;stroke-miterlimit:10;" width="52.5"
                     height="52.5" />
             </svg>
         </div>
-        <div id="_eurekaCanvas-zoomComboBox">
-            <div id="_eurekaCanvas-zoomComboBoxInputContainer">
+        <div class="eureka-canvas-zoom-combobox">
+            <div class="eureka-canvas-zoom-combobox-input-container">
                 <input :value="comboBoxZoomLevel" @change="updateZoomFromCombobox"
-                    @focus="openZoomComboBox" id="_eurekaCanvas-input" type="text" />
+                    @focus="openZoomComboBox" class="eureka-canvas-zoom-input" type="text" />
             </div>
-            <div v-show="showZoomComboBoxDropdown" ref="zoomComboBoxDropdown" id="_eurekaCanvas-zoomComboBoxLevels" :style="zoomComboBoxDropdownTopPosition">
-                <div v-for="zoom in zoomLevelOptions" :key="zoom" @click="zoomTo(zoom)" class="_eurekaCanvas-zoomComboBoxLevelsOption">{{zoom}}%</div>
+            <div v-show="showZoomComboBoxDropdown" ref="zoomComboBoxDropdown" class="eureka-canvas-zoom-combobox-levels" :style="zoomComboBoxDropdownTopPosition">
+                <div v-for="zoom in zoomLevelOptions" :key="zoom" @click="zoomTo(zoom)" class="eureka-canvas-zoom-combobox-option">{{zoom}}%</div>
             </div>
         </div>
     </div>
@@ -116,7 +116,7 @@ function openZoomComboBox() {
 </script>
 
 <style scoped>
-    #_eurekaCanvas-ZoomButtonsContainer {
+    .eureka-canvas-zoom-buttons {
         position: absolute;
         bottom: 1%;
         right: 1%;
@@ -124,11 +124,11 @@ function openZoomComboBox() {
         box-sizing: border-box;
     }
 
-    #_eurekaCanvas-ZoomButtonsContainer * {
+    .eureka-canvas-zoom-buttons * {
         box-sizing: border-box;
     }
 
-    #_eurekaCanvas-ZoomButtonsContainer .iconContainer {
+    .eureka-canvas-zoom-buttons .iconContainer {
         background-color: #333;
         border: 1px solid #333;
         color: #eee;
@@ -142,22 +142,22 @@ function openZoomComboBox() {
         cursor: pointer;
     }
 
-    #_eurekaCanvas-ZoomButtonsContainer .iconContainer svg {
+    .eureka-canvas-zoom-buttons .iconContainer svg {
         stroke: #eee;
         stroke-width: 10;
     }
 
-    #_eurekaCanvas-maximize {
+    .eureka-canvas-maximize {
         width: 16px;
         height: 16px;
     }
 
-    #_eurekaCanvas-fittoscreen {
+    .eureka-canvas-fit-to-screen {
         width: 16px;
         height: 16px;
     }
 
-    #_eurekaCanvas-zoomComboBox {
+    .eureka-canvas-zoom-combobox {
         height: 32px;
         margin-left: 5px;
         display: flex;
@@ -166,12 +166,12 @@ function openZoomComboBox() {
         position: relative;
     }
 
-    #_eurekaCanvas-zoomComboBoxInputContainer {
+    .eureka-canvas-zoom-combobox-input-container {
         height: 100%;
         display: flex;
     }
 
-    #_eurekaCanvas-zoomComboBoxLevels {
+    .eureka-canvas-zoom-combobox-levels {
         background-color: #474747;
         border-top: 1px solid #767676;
         border-right: 1px solid #767676;
@@ -182,18 +182,18 @@ function openZoomComboBox() {
         width: calc(100% - 2px);
     }
 
-    ._eurekaCanvas-zoomComboBoxLevelsOption {
+    .eureka-canvas-zoom-combobox-option {
         padding-top: .25rem;
         padding-bottom: .25rem;
         border-bottom: 1px solid #ccc;
         cursor: pointer;
     }
 
-    ._eurekaCanvas-zoomComboBoxLevelsOption:hover {
+    .eureka-canvas-zoom-combobox-option:hover {
         background-color: #767676;
     }
 
-    #_eurekaCanvas-input {
+    .eureka-canvas-zoom-input {
         background-color: #474747;
         border: 1px solid #474747;
         color: #cccccc;

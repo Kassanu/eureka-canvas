@@ -1,7 +1,5 @@
 export type DrawStyle = 'default' | 'circle' | 'polygon' | (string & {})
 
-export type TextPosition = 'top' | 'bottom' | 'left' | 'right'
-
 export type LabelAnchor = 'center' | 'top' | 'bottom' | 'left' | 'right'
 
 export interface TextStyle {
@@ -64,11 +62,6 @@ export interface RendererResult extends BoundingBox {
 
 export type RendererFunction = (params: DrawParams) => RendererResult
 
-export interface Icon {
-  path: string
-  image: HTMLImageElement | null
-}
-
 export interface Coordinates {
   x: number
   y: number
@@ -77,10 +70,9 @@ export interface Coordinates {
 export interface Position {
   id: number
   label: string
-  icons: Icon[]
+  icons: (string | HTMLImageElement)[]
   coordinates: Coordinates
   drawStyle?: DrawStyle
-  textPosition?: TextPosition
   labelAnchor?: LabelAnchor
   labelOffset?: Coordinates
   polygon?: Coordinates[]
@@ -99,9 +91,4 @@ export interface BoundingBoxEntry extends BoundingBox {
   id: number | string
   idKey: string
   hitTest?: (point: Coordinates) => boolean
-}
-
-export interface Quadrant {
-  box: BoundingBox
-  children: BoundingBoxEntry[]
 }

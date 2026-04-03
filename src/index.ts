@@ -1,14 +1,21 @@
 import EurekaCanvas from './components/EurekaCanvas.vue'
 export { EurekaCanvas }
-export default EurekaCanvas
+export { useImageLoader } from './composables/useImageLoader'
 
 export type {
-  Icon,
   Coordinates,
   Position,
   BoundingBox,
   BoundingBoxEntry,
-  Quadrant,
   DrawStyle,
-  TextPosition
+  LabelAnchor,
+  CanvasStyle,
+  PositionStyle,
+  TextStyle,
+  CircleStyle,
+  PolygonStyle,
+  DrawParams,
+  RendererFunction,
+  RendererResult,
+  ResolvedCanvasStyle
 } from './types'

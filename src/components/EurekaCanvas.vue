@@ -1,23 +1,38 @@
 <template>
-  <div id="eurekaCanvasContainer">
-    <canvas ref="canvasRef" id="eurekaCanvas"></canvas>
-    <div v-show="showCoordinates" id="eurekaCanvasMouseCoordinates">
-      {{ mouseCoordinates.x ?? '' }}, {{ mouseCoordinates.y ?? '' }}
-    </div>
-    <ZoomContainer
-      :minimumZoom="minimumZoom"
-      :maximumZoom="maximumZoom"
-      :zoomLevel="zoomLevel"
-      @scaleToFit="scaleToFit"
-      @zoomTo="zoomTo"
-    />
+  <div class="eureka-canvas-container">
+    <template v-if="imageLoading">
+      <slot name="loading">
+        <div class="eureka-canvas-loading">
+          <div class="eureka-canvas-spinner" />
+        </div>
+      </slot>
+    </template>
+    <template v-else-if="imageError">
+      <slot name="error" :error="imageError">
+        <div class="eureka-canvas-error">{{ imageError }}</div>
+      </slot>
+    </template>
+    <template v-else>
+      <canvas ref="canvasRef" class="eureka-canvas"></canvas>
+      <div v-show="showCoordinates" class="eureka-canvas-mouse-coordinates">
+        {{ mouseCoordinates.x ?? '' }}, {{ mouseCoordinates.y ?? '' }}
+      </div>
+      <ZoomContainer
+        :minimumZoom="minimumZoom"
+        :maximumZoom="maximumZoom"
+        :zoomLevel="zoomLevel"
+        @scaleToFit="scaleToFit"
+        @zoomTo="zoomTo"
+      />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import ZoomContainer from './ZoomContainer.vue'
 import type { Position, Coordinates, CanvasStyle, RendererFunction, DrawParams } from '../types'
+import { useImageLoader } from '../composables/useImageLoader'
 import {
   isCoordinateInView,
   coordinatesToFullPoint,
@@ -34,7 +49,7 @@ import { useCanvasInput } from '../composables/useCanvasInput'
 import { useIconCache } from '../composables/useIconCache'
 
 const props = defineProps<{
-  canvasImage: HTMLImageElement
+  canvasImage: string | HTMLImageElement
   gridSizeInPixels?: number
   coordinatesOffset?: number
   positions: Position[]
@@ -44,6 +59,8 @@ const props = defineProps<{
   canvasStyle?: CanvasStyle
   renderers?: Record<string, RendererFunction>
 }>()
+
+const { image: loadedImage, isLoading: imageLoading, error: imageError } = useImageLoader(() => props.canvasImage)
 
 const emit = defineEmits(['click', 'clickedElement', 'hover', 'zoomChange', 'panChange', 'viewportChange'])
 
@@ -133,17 +150,20 @@ watch(() => props.positions, () => {
   draw()
 })
 
-onMounted(() => {
-  canvasImageWidth.value = props.canvasImage.naturalWidth
-  canvasImageHeight.value = props.canvasImage.naturalHeight
-  scaledImageWidth.value = canvasImageWidth.value
-  scaledImageHeight.value = canvasImageHeight.value
-  canvasElement.value = canvasRef.value
-  if (!canvasElement.value) return
-  resizeCanvas()
-  canvasContext.value = canvasElement.value.getContext('2d')
-  setUpListeners()
-  scaleToFit()
+watch(loadedImage, (img) => {
+  if (!img) return
+  nextTick(() => {
+    canvasImageWidth.value = img.naturalWidth
+    canvasImageHeight.value = img.naturalHeight
+    scaledImageWidth.value = canvasImageWidth.value
+    scaledImageHeight.value = canvasImageHeight.value
+    canvasElement.value = canvasRef.value
+    if (!canvasElement.value) return
+    resizeCanvas()
+    canvasContext.value = canvasElement.value.getContext('2d')
+    setUpListeners()
+    scaleToFit()
+  })
 })
 
 function resizeCanvas() {
@@ -204,10 +224,10 @@ function handleMouseMove(point: Coordinates) {
 }
 
 function draw() {
-  if (!canvasContext.value || !canvasElement.value) return
+  if (!canvasContext.value || !canvasElement.value || !loadedImage.value) return
   canvasContext.value.clearRect(0, 0, canvasElement.value.width, canvasElement.value.height)
   canvasContext.value.drawImage(
-    props.canvasImage,
+    loadedImage.value,
     canvasImagePos.x,
     canvasImagePos.y,
     scaledImageWidth.value,
@@ -285,14 +305,14 @@ function drawPositions() {
 </script>
 
 <style scoped>
-#eurekaCanvasContainer,
-#eurekaCanvas {
+.eureka-canvas-container,
+.eureka-canvas {
   width: 100%;
   height: 100%;
   display: block;
 }
 
-#eurekaCanvasMouseCoordinates {
+.eureka-canvas-mouse-coordinates {
   position: absolute;
   top: 1%;
   right: 1%;
@@ -300,5 +320,30 @@ function drawPositions() {
   border: 1px solid rgba(25, 25, 25, 0.8);
   color: #eee;
   padding: 5px;
+}
+
+.eureka-canvas-loading,
+.eureka-canvas-error {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(30, 30, 30, 1);
+  color: #ccc;
+  font-family: sans-serif;
+}
+
+.eureka-canvas-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: eureka-spin 0.8s linear infinite;
+}
+
+@keyframes eureka-spin {
+  to { transform: rotate(360deg); }
 }
 </style>
