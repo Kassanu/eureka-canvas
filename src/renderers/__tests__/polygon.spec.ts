@@ -4,6 +4,7 @@ import type { DrawParams, ResolvedCanvasStyle, Position } from '../../types'
 
 function createMockCtx() {
   return {
+    canvas: { width: 800, height: 600 },
     beginPath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
@@ -77,14 +78,15 @@ describe('renderPolygon', () => {
     expect(ctx.stroke).toHaveBeenCalled()
   })
 
-  it('skips drawing when isInView is false', () => {
+  it('skips drawing when polygon is off-screen', () => {
     const ctx = createMockCtx()
-    renderPolygon(makeParams({ ctx, isInView: false }))
+    // Shift image position so polygon vertices are far off-screen
+    renderPolygon(makeParams({ ctx, canvasImagePos: { x: -5000, y: -5000 } }))
     expect(ctx.beginPath).not.toHaveBeenCalled()
   })
 
-  it('still returns bounding box when isInView is false', () => {
-    const result = renderPolygon(makeParams({ isInView: false }))
+  it('still returns bounding box when polygon is off-screen', () => {
+    const result = renderPolygon(makeParams({ canvasImagePos: { x: -5000, y: -5000 } }))
     expect(result.width).toBe(100)
     expect(result.height).toBe(100)
   })

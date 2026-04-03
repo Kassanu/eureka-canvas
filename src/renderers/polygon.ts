@@ -4,7 +4,7 @@ import { polygonBounds, pointInPolygon, polygonCentroid } from '../utils/geometr
 export function renderPolygon(params: DrawParams): RendererResult {
   const {
     ctx, position, offsetDrawPosition, scaleMultiplier,
-    clampedZoomLevel, canvasImagePos, isInView, style
+    clampedZoomLevel, canvasImagePos, style
   } = params
   const { polygon: polygonStyle, text } = style
   const zoomScale = clampedZoomLevel / 100
@@ -20,7 +20,16 @@ export function renderPolygon(params: DrawParams): RendererResult {
     y: v.y * scaleMultiplier + canvasImagePos.y
   }))
 
-  if (isInView) {
+  // Polygon visibility is based on its own bounds, not position.coordinates
+  const bounds = polygonBounds(scaledVertices)
+  const canvasWidth = ctx.canvas.width
+  const canvasHeight = ctx.canvas.height
+  const polyInView = bounds.x + bounds.width >= 0
+    && bounds.x <= canvasWidth
+    && bounds.y + bounds.height >= 0
+    && bounds.y <= canvasHeight
+
+  if (polyInView) {
     ctx.beginPath()
     ctx.moveTo(scaledVertices[0].x, scaledVertices[0].y)
     for (let i = 1; i < scaledVertices.length; i++) {
@@ -60,8 +69,6 @@ export function renderPolygon(params: DrawParams): RendererResult {
       ctx.textAlign = 'start' // reset
     }
   }
-
-  const bounds = polygonBounds(scaledVertices)
 
   // Image-relative scaled vertices for hitTest (subtract canvasImagePos)
   const hitTestVertices = scaledVertices.map(v => ({
