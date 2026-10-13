@@ -72,7 +72,10 @@ const positionsIdKey = computed(() => props.positionsIdKey ?? '_index')
 
 const activeRenderers = computed(() => ({ ...builtInRenderers, ...props.renderers }))
 const iconCache = useIconCache()
-iconCache.setOnLoad(() => draw())
+iconCache.setOnLoad(() => {
+  resetSpatialIndex()
+  draw()
+})
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const canvasElement = ref<HTMLCanvasElement | null>(null)

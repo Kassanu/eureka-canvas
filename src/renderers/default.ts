@@ -86,5 +86,5 @@ export function renderDefault(params: DrawParams): RendererResult {
     ctx.fillText(position.label, textDrawPosition.x, textDrawPosition.y)
   }
 
-  return rectBounds(iconsBoundingBox, textBoundingBox)
+  return resolvedIcons.length ? rectBounds(iconsBoundingBox, textBoundingBox) : textBoundingBox
 }
