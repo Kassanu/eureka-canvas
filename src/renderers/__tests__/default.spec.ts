@@ -85,6 +85,11 @@ describe('renderDefault', () => {
     expect(ctx.drawImage).toHaveBeenCalledOnce()
   })
 
+  it('bounds only the label when no icons are resolved', () => {
+    const result = renderDefault(makeParams({ resolvedIcons: [] }))
+    expect(result).toEqual({ x: 100, y: 91, width: 50, height: 18 })
+  })
+
   it('applies labelOffset scaled by zoom', () => {
     const ctx = createMockCtx()
     const position = { id: 1, label: 'Test', icons: [], coordinates: { x: 1, y: 1 }, labelOffset: { x: 10, y: 5 } } as Position
